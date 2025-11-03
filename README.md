@@ -7,9 +7,11 @@ Automated form filling tool for noro.rs using Playwright. This tool generates ra
 - 🤖 Automated form filling with Playwright
 - 🇷🇸 Random Serbian data generation (names, addresses, phone numbers)
 - ⏰ Scheduled runs at configurable times
+- 🌐 **Web dashboard for manual control and monitoring**
 - 📝 Comprehensive logging
 - 🎭 Stealth mode to avoid detection
 - 📸 Screenshot capture for debugging
+- 📊 Real-time statistics and status tracking
 
 ## Prerequisites
 
@@ -63,11 +65,44 @@ HEADLESS=false  # Set to true to run without visible browser
 # Delays between actions (seconds)
 MIN_DELAY=1
 MAX_DELAY=3
+
+# Web interface settings
+PORT=5000
+AUTO_START_SCHEDULER=true
+SECRET_KEY=change-this-to-a-random-secret-key
 ```
 
 ## Usage
 
-### Test Mode (Run Once)
+### Web Interface (Recommended for Railway/Cloud Deployment)
+
+The tool now includes a web dashboard for easy control and monitoring!
+
+**Start the web server:**
+
+```bash
+python app.py
+```
+
+Then open your browser to `http://localhost:5000`
+
+**Features:**
+- ▶️ Manual trigger button to run form submissions on-demand
+- ⏰ Start/Stop scheduler from the web interface
+- 📊 Real-time statistics (total runs, success rate, etc.)
+- 📋 Live log viewer
+- ⚙️ Configuration display
+
+**Environment Variables for Web Interface:**
+```bash
+PORT=5000                    # Web server port
+AUTO_START_SCHEDULER=true    # Auto-start scheduler on app launch
+SECRET_KEY=your-secret-key   # Flask secret key (change in production)
+```
+
+### CLI Mode
+
+#### Test Mode (Run Once)
 
 Run the form filler once with a visible browser to test and debug:
 
@@ -117,10 +152,13 @@ python main.py --test --url "https://example.com"
 
 ```
 prevara/
-├── main.py                      # Main entry point
+├── app.py                       # Flask web application (WEB INTERFACE)
+├── main.py                      # CLI entry point
 ├── form_filler.py              # Core form filling logic
 ├── scheduler.py                 # Scheduling functionality
 ├── serbian_data_generator.py   # Random Serbian data generation
+├── templates/                   # Web interface templates
+│   └── index.html              # Dashboard HTML
 ├── requirements.txt             # Python dependencies
 ├── Dockerfile                   # Docker configuration for Railway/cloud deployment
 ├── railway.toml                 # Railway-specific configuration
@@ -279,18 +317,23 @@ Railway is a platform that makes it easy to deploy and host this tool in the clo
    HEADLESS=true
    MIN_DELAY=1
    MAX_DELAY=3
+   AUTO_START_SCHEDULER=true
+   SECRET_KEY=your-random-secret-key-here
    ```
 
 5. **Deploy**:
    - Railway will automatically build and deploy
-   - The app will run continuously on schedule
+   - The web interface will be available at your Railway URL
+   - Access the dashboard to manually trigger runs or monitor automation
 
 #### Important Railway Notes:
 
 - **HEADLESS must be true** on Railway (no GUI available)
 - Browser automation uses significant resources (RAM/CPU)
+- **Access the web dashboard** at your Railway app URL to control the automation
 - Check Railway logs: `railway logs` or via dashboard
 - Monitor costs in Railway dashboard
+- The web interface provides full control: manual triggers, start/stop scheduler, view logs
 - Screenshots won't work in Railway (no display), but logs will
 
 #### Railway CLI Deployment:

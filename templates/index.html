@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Automation Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .stat {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .stat:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #333;
+            font-size: 1.1rem;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .status-failed {
+            background: #ef4444;
+            color: white;
+        }
+
+        .status-idle {
+            background: #6b7280;
+            color: white;
+        }
+
+        .status-running {
+            background: #3b82f6;
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            width: 100%;
+            margin-bottom: 10px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .logs-section {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .logs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .logs-container {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 8px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        .log-line {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+        }
+
+        .log-info {
+            color: #4ade80;
+        }
+
+        .log-error {
+            color: #f87171;
+        }
+
+        .log-warning {
+            color: #fbbf24;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert-success {
+            background: #d1fae5;
+            color: #065f46;
+            border: 1px solid #10b981;
+        }
+
+        .alert-error {
+            background: #fee2e2;
+            color: #991b1b;
+            border: 1px solid #ef4444;
+        }
+
+        .config-list {
+            list-style: none;
+        }
+
+        .config-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .config-list li:last-child {
+            border-bottom: none;
+        }
+
+        .config-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .config-value {
+            color: #333;
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 Form Automation Dashboard</h1>
+            <p>Noro.rs Automated Form Submissions</p>
+        </div>
+
+        <div id="alert" class="alert"></div>
+
+        <div class="dashboard">
+            <!-- Status Card -->
+            <div class="card">
+                <h2>📊 Status</h2>
+                <div class="stat">
+                    <span class="stat-label">Current Status</span>
+                    <span id="current-status" class="status-badge status-idle">Idle</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Last Run</span>
+                    <span id="last-run" class="stat-value">Never</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Last Result</span>
+                    <span id="last-status" class="stat-value">-</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Scheduler</span>
+                    <span id="scheduler-status" class="status-badge status-idle">Stopped</span>
+                </div>
+            </div>
+
+            <!-- Statistics Card -->
+            <div class="card">
+                <h2>📈 Statistics</h2>
+                <div class="stat">
+                    <span class="stat-label">Total Runs</span>
+                    <span id="total-runs" class="stat-value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Successful</span>
+                    <span id="successful-runs" class="stat-value" style="color: #10b981;">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Failed</span>
+                    <span id="failed-runs" class="stat-value" style="color: #ef4444;">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Success Rate</span>
+                    <span id="success-rate" class="stat-value">0%</span>
+                </div>
+            </div>
+
+            <!-- Controls Card -->
+            <div class="card">
+                <h2>🎮 Controls</h2>
+                <div class="controls">
+                    <button id="run-btn" class="btn btn-primary" onclick="triggerRun()">
+                        ▶️ Run Now
+                    </button>
+                    <button id="start-scheduler-btn" class="btn btn-success" onclick="startScheduler()">
+                        ⏰ Start Scheduler
+                    </button>
+                    <button id="stop-scheduler-btn" class="btn btn-danger" onclick="stopScheduler()" disabled>
+                        ⏸️ Stop Scheduler
+                    </button>
+                    <button class="btn btn-secondary" onclick="refreshStatus()">
+                        🔄 Refresh Status
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Card -->
+        <div class="card" style="margin-bottom: 30px;">
+            <h2>⚙️ Configuration</h2>
+            <ul class="config-list" id="config-list">
+                <li>
+                    <span class="config-label">Loading...</span>
+                    <span class="config-value"></span>
+                </li>
+            </ul>
+        </div>
+
+        <!-- Logs Section -->
+        <div class="logs-section">
+            <div class="logs-header">
+                <h2>📋 Recent Logs</h2>
+                <button class="btn btn-secondary" onclick="refreshLogs()" style="width: auto; padding: 8px 16px; margin: 0;">
+                    🔄 Refresh
+                </button>
+            </div>
+            <div class="logs-container" id="logs">
+                <div class="log-line">Loading logs...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let statusInterval;
+
+        // Show alert message
+        function showAlert(message, type = 'success') {
+            const alert = document.getElementById('alert');
+            alert.textContent = message;
+            alert.className = `alert alert-${type}`;
+            alert.style.display = 'block';
+
+            setTimeout(() => {
+                alert.style.display = 'none';
+            }, 5000);
+        }
+
+        // Fetch and update status
+        async function refreshStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+
+                // Update status
+                const status = data.status;
+                const currentStatus = document.getElementById('current-status');
+
+                if (status.running) {
+                    currentStatus.textContent = 'Running';
+                    currentStatus.className = 'status-badge status-running';
+                } else {
+                    currentStatus.textContent = 'Idle';
+                    currentStatus.className = 'status-badge status-idle';
+                }
+
+                // Update last run
+                if (status.last_run) {
+                    const date = new Date(status.last_run);
+                    document.getElementById('last-run').textContent = date.toLocaleString();
+                } else {
+                    document.getElementById('last-run').textContent = 'Never';
+                }
+
+                // Update last status
+                const lastStatusEl = document.getElementById('last-status');
+                if (status.last_status === 'success') {
+                    lastStatusEl.textContent = '✅ Success';
+                    lastStatusEl.style.color = '#10b981';
+                } else if (status.last_status === 'failed' || status.last_status === 'error') {
+                    lastStatusEl.textContent = '❌ Failed';
+                    lastStatusEl.style.color = '#ef4444';
+                } else {
+                    lastStatusEl.textContent = '-';
+                    lastStatusEl.style.color = '#333';
+                }
+
+                // Update scheduler status
+                const schedulerStatus = document.getElementById('scheduler-status');
+                if (status.scheduler_active) {
+                    schedulerStatus.textContent = 'Running';
+                    schedulerStatus.className = 'status-badge status-success';
+                    document.getElementById('start-scheduler-btn').disabled = true;
+                    document.getElementById('stop-scheduler-btn').disabled = false;
+                } else {
+                    schedulerStatus.textContent = 'Stopped';
+                    schedulerStatus.className = 'status-badge status-idle';
+                    document.getElementById('start-scheduler-btn').disabled = false;
+                    document.getElementById('stop-scheduler-btn').disabled = true;
+                }
+
+                // Update statistics
+                document.getElementById('total-runs').textContent = status.total_runs;
+                document.getElementById('successful-runs').textContent = status.successful_runs;
+                document.getElementById('failed-runs').textContent = status.failed_runs;
+
+                const successRate = status.total_runs > 0
+                    ? Math.round((status.successful_runs / status.total_runs) * 100)
+                    : 0;
+                document.getElementById('success-rate').textContent = successRate + '%';
+
+                // Update configuration
+                const config = data.config;
+                const configList = document.getElementById('config-list');
+                configList.innerHTML = `
+                    <li>
+                        <span class="config-label">Target URL</span>
+                        <span class="config-value">${config.target_url}</span>
+                    </li>
+                    <li>
+                        <span class="config-label">Schedule Times</span>
+                        <span class="config-value">${config.schedule_times.join(', ')}</span>
+                    </li>
+                    <li>
+                        <span class="config-label">Headless Mode</span>
+                        <span class="config-value">${config.headless ? 'Yes' : 'No'}</span>
+                    </li>
+                `;
+
+                // Update button states
+                document.getElementById('run-btn').disabled = status.running;
+
+            } catch (error) {
+                console.error('Error fetching status:', error);
+                showAlert('Failed to fetch status', 'error');
+            }
+        }
+
+        // Refresh logs
+        async function refreshLogs() {
+            try {
+                const response = await fetch('/api/logs');
+                const data = await response.json();
+
+                const logsContainer = document.getElementById('logs');
+                if (data.logs && data.logs.length > 0) {
+                    logsContainer.innerHTML = data.logs.map(line => {
+                        let className = 'log-line';
+                        if (line.includes('ERROR')) className += ' log-error';
+                        else if (line.includes('WARNING')) className += ' log-warning';
+                        else if (line.includes('INFO')) className += ' log-info';
+
+                        return `<div class="${className}">${escapeHtml(line)}</div>`;
+                    }).join('');
+
+                    // Auto-scroll to bottom
+                    logsContainer.scrollTop = logsContainer.scrollHeight;
+                } else {
+                    logsContainer.innerHTML = '<div class="log-line">No logs available</div>';
+                }
+
+            } catch (error) {
+                console.error('Error fetching logs:', error);
+            }
+        }
+
+        // Trigger manual run
+        async function triggerRun() {
+            const btn = document.getElementById('run-btn');
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Running...';
+
+            try {
+                const response = await fetch('/api/run', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.message, 'error');
+                }
+
+                await refreshStatus();
+                await refreshLogs();
+
+            } catch (error) {
+                console.error('Error triggering run:', error);
+                showAlert('Failed to trigger run', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '▶️ Run Now';
+            }
+        }
+
+        // Start scheduler
+        async function startScheduler() {
+            try {
+                const response = await fetch('/api/scheduler/start', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.message, 'error');
+                }
+
+                await refreshStatus();
+
+            } catch (error) {
+                console.error('Error starting scheduler:', error);
+                showAlert('Failed to start scheduler', 'error');
+            }
+        }
+
+        // Stop scheduler
+        async function stopScheduler() {
+            try {
+                const response = await fetch('/api/scheduler/stop', {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showAlert(data.message, 'success');
+                } else {
+                    showAlert(data.message, 'error');
+                }
+
+                await refreshStatus();
+
+            } catch (error) {
+                console.error('Error stopping scheduler:', error);
+                showAlert('Failed to stop scheduler', 'error');
+            }
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            refreshStatus();
+            refreshLogs();
+
+            // Auto-refresh every 5 seconds
+            statusInterval = setInterval(() => {
+                refreshStatus();
+            }, 5000);
+
+            // Auto-refresh logs every 10 seconds
+            setInterval(() => {
+                refreshLogs();
+            }, 10000);
+        });
+    </script>
+</body>
+</html>

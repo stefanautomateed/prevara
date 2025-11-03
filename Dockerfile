@@ -1,12 +1,17 @@
 # Dockerfile for Railway deployment
 FROM python:3.11-slim
 
+# Set environment variables for non-interactive apt
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Install system dependencies for Playwright
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     ca-certificates \
     fonts-liberation \
+    fonts-noto-color-emoji \
+    fonts-noto-cjk \
     libappindicator3-1 \
     libasound2 \
     libatk-bridge2.0-0 \
@@ -25,6 +30,7 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
     libu2f-udev \
     libvulkan1 \
+    libxshmfence1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -36,9 +42,8 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install chromium
-RUN playwright install-deps chromium
+# Install Playwright browsers (skip system deps since we already installed them)
+RUN playwright install chromium --with-deps || playwright install chromium
 
 # Copy application code
 COPY . .
@@ -46,5 +51,9 @@ COPY . .
 # Create logs directory
 RUN mkdir -p logs
 
-# Run the application
-CMD ["python", "main.py", "--schedule"]
+# Expose port (Railway will set PORT env var)
+EXPOSE 5000
+
+# Run the web application with gunicorn
+# Using shell form to allow PORT env var expansion
+CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --threads 2 --timeout 300 app:app
