@@ -290,6 +290,61 @@ class FormFiller:
                     except Exception as e:
                         self.logger.warning(f"Could not enumerate buttons: {e}")
 
+                    # CRITICAL: Select product quantity BEFORE submitting (noro.rs specific)
+                    # Buttons 6, 7, 8 are quantity selectors (0, 1, 2 packages)
+                    # Button 9 is "Primeni" (Apply) button
+                    try:
+                        self.logger.info("=" * 80)
+                        self.logger.info("🔢 SELECTING PRODUCT QUANTITY...")
+
+                        # Find and click quantity button "1" or "2" (not "0")
+                        quantity_result = await page.evaluate("""
+                        () => {
+                            const buttons = document.querySelectorAll('button');
+                            for (let btn of buttons) {
+                                const text = (btn.textContent || '').trim();
+                                // Find button with just "1" or "2" as text (quantity buttons)
+                                if ((text === '1' || text === '2') && btn.type === 'button') {
+                                    btn.click();
+                                    return {success: true, quantity: text, buttonType: btn.type};
+                                }
+                            }
+                            return {success: false};
+                        }
+                        """)
+
+                        if quantity_result.get('success'):
+                            self.logger.info(f"✅ Selected quantity: {quantity_result.get('quantity')} package(s)")
+                            await asyncio.sleep(1)
+
+                            # Now click "Primeni" (Apply) button
+                            primeni_result = await page.evaluate("""
+                            () => {
+                                const buttons = document.querySelectorAll('button');
+                                for (let btn of buttons) {
+                                    const text = (btn.textContent || '').trim().toLowerCase();
+                                    if (text === 'primeni') {
+                                        btn.click();
+                                        return {success: true};
+                                    }
+                                }
+                                return {success: false};
+                            }
+                            """)
+
+                            if primeni_result.get('success'):
+                                self.logger.info("✅ Clicked 'Primeni' (Apply) button")
+                                await asyncio.sleep(2)  # Wait for form to update
+                                self.logger.info("Waiting for form to update after quantity selection...")
+                            else:
+                                self.logger.warning("⚠️ Could not find 'Primeni' button")
+                        else:
+                            self.logger.info("ℹ️ No quantity selector buttons found (might not be needed for this site)")
+
+                        self.logger.info("=" * 80)
+                    except Exception as e:
+                        self.logger.warning(f"Quantity selection not applicable: {e}")
+
                     # SUBMIT THE FORM - Try standard selectors first
                     submit_clicked = False
                     for selector in submit_selectors:
