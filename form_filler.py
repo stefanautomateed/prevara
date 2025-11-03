@@ -268,6 +268,58 @@ class FormFiller:
                         except Exception as e:
                             self.logger.info(f"No confirmation dialog found or handled: {e}")
 
+                        # Handle order bump / upsell popups (especially for limitlesss.rs)
+                        try:
+                            self.logger.info("Looking for order bump/upsell offers...")
+                            await self.random_delay()  # Give the popup time to appear
+
+                            # Look for order bump reject/decline buttons
+                            order_bump_reject_selectors = [
+                                'button:has-text("Ne hvala")',
+                                'button:has-text("Ne, hvala")',
+                                'button:has-text("Odbij")',
+                                'button:has-text("Decline")',
+                                'button:has-text("No thanks")',
+                                'button:has-text("Skip")',
+                                'button:has-text("Preskoči")',
+                                'button:has-text("Zatvori")',
+                                'button:has-text("Close")',
+                                'a:has-text("Ne hvala")',
+                                'a:has-text("Ne, hvala")',
+                                'a:has-text("Odbij")',
+                                '[class*="decline"]',
+                                '[class*="reject"]',
+                                '[class*="skip"]',
+                                '[id*="decline"]',
+                                '[id*="reject"]'
+                            ]
+
+                            order_bump_found = False
+                            for selector in order_bump_reject_selectors:
+                                try:
+                                    # Check if order bump button exists
+                                    if await page.locator(selector).count() > 0:
+                                        await page.click(selector, timeout=3000)
+                                        self.logger.info(f"Clicked order bump REJECT button: {selector}")
+                                        order_bump_found = True
+                                        await self.random_delay()
+
+                                        # Wait for any final navigation
+                                        try:
+                                            await page.wait_for_load_state('networkidle', timeout=5000)
+                                        except:
+                                            pass
+
+                                        break
+                                except:
+                                    continue
+
+                            if not order_bump_found:
+                                self.logger.info("No order bump/upsell popup found (or already handled)")
+
+                        except Exception as e:
+                            self.logger.info(f"Order bump handling error (likely no order bump present): {e}")
+
                     # Take screenshot after submission
                     try:
                         await page.screenshot(
