@@ -122,9 +122,13 @@ prevara/
 ├── scheduler.py                 # Scheduling functionality
 ├── serbian_data_generator.py   # Random Serbian data generation
 ├── requirements.txt             # Python dependencies
+├── Dockerfile                   # Docker configuration for Railway/cloud deployment
+├── railway.toml                 # Railway-specific configuration
+├── .dockerignore                # Files to exclude from Docker build
 ├── .env                         # Configuration (create from .env.example)
 ├── .env.example                 # Example configuration
 ├── .gitignore                   # Git ignore rules
+├── setup.sh                     # Automated setup script
 ├── logs/                        # Log files and screenshots (auto-created)
 └── README.md                    # This file
 ```
@@ -244,6 +248,76 @@ sudo systemctl enable form-filler
 sudo systemctl start form-filler
 sudo systemctl status form-filler
 ```
+
+## Deployment
+
+### Deploy to Railway
+
+Railway is a platform that makes it easy to deploy and host this tool in the cloud.
+
+**Cost**: Expect $10-20/month depending on usage (Railway bills based on resource usage)
+
+#### Steps:
+
+1. **Create a Railway account** at [railway.app](https://railway.app)
+
+2. **Install Railway CLI** (optional):
+   ```bash
+   npm install -g @railway/cli
+   ```
+
+3. **Deploy via Railway Dashboard**:
+   - Click "New Project"
+   - Select "Deploy from GitHub repo"
+   - Choose your repository
+   - Railway will auto-detect the Dockerfile
+
+4. **Set Environment Variables** in Railway dashboard:
+   ```
+   SCHEDULE_TIMES=10:00,14:00,18:00
+   TARGET_URL=https://noro.rs/
+   HEADLESS=true
+   MIN_DELAY=1
+   MAX_DELAY=3
+   ```
+
+5. **Deploy**:
+   - Railway will automatically build and deploy
+   - The app will run continuously on schedule
+
+#### Important Railway Notes:
+
+- **HEADLESS must be true** on Railway (no GUI available)
+- Browser automation uses significant resources (RAM/CPU)
+- Check Railway logs: `railway logs` or via dashboard
+- Monitor costs in Railway dashboard
+- Screenshots won't work in Railway (no display), but logs will
+
+#### Railway CLI Deployment:
+
+```bash
+# Login
+railway login
+
+# Link to project or create new
+railway link
+
+# Deploy
+railway up
+
+# View logs
+railway logs
+```
+
+### Other Hosting Options
+
+For more affordable hosting, consider:
+- **VPS (DigitalOcean, Linode)**: $5-12/month
+- **Oracle Cloud Free Tier**: FREE forever (ARM VMs)
+- **Render**: $7/month for background workers
+- **Home server/Raspberry Pi**: One-time cost
+
+See the "Hosting Options" section in our documentation for detailed comparisons.
 
 ## Troubleshooting
 
