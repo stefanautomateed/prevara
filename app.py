@@ -19,6 +19,9 @@ import schedule
 # Load environment variables
 load_dotenv()
 
+# Ensure logs directory exists before configuring file handlers
+os.makedirs('logs', exist_ok=True)
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,

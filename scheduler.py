@@ -15,6 +15,9 @@ from form_filler import run_single_form_fill
 # Load environment variables
 load_dotenv()
 
+# Ensure logs directory exists before configuring file handlers
+os.makedirs('logs', exist_ok=True)
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,

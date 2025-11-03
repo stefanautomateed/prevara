@@ -119,9 +119,16 @@ class SerbianDataGenerator:
         """
         domains = ["gmail.com", "yahoo.com", "hotmail.com", "outlook.com"]
 
+        def sanitize_ascii(text: str) -> str:
+            mapping = {
+                'š': 's', 'đ': 'dj', 'č': 'c', 'ć': 'c', 'ž': 'z',
+                'Š': 's', 'Đ': 'dj', 'Č': 'c', 'Ć': 'c', 'Ž': 'z'
+            }
+            return ''.join(mapping.get(ch, ch) for ch in text)
+
         if name:
             # Create email from name
-            parts = name.lower().split()
+            parts = sanitize_ascii(name.lower()).split()
             if len(parts) >= 2:
                 username = f"{parts[0]}.{parts[1]}{random.randint(1, 999)}"
             else:
