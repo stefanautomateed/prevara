@@ -306,24 +306,26 @@ class FormFiller:
                                             # INSPECT button properties first
                                             try:
                                                 safe_sel = selector.replace("'", "\\'")
-                                                button_info = await page.evaluate(f'''
-                                                    const btn = document.querySelector('{safe_sel}');
-                                                    if (btn) {{
-                                                        return {{
-                                                            tagName: btn.tagName,
-                                                            type: btn.type,
-                                                            className: btn.className,
-                                                            id: btn.id,
-                                                            disabled: btn.disabled,
-                                                            hasOnClick: !!btn.onclick,
-                                                            hasForm: !!btn.form,
-                                                            dataAttributes: Array.from(btn.attributes)
-                                                                .filter(attr => attr.name.startsWith('data-'))
-                                                                .map(attr => attr.name + '=' + attr.value)
-                                                        }};
-                                                    }}
-                                                    return null;
-                                                ''')
+                                                # Use function form to avoid f-string issues
+                                                js_inspect = """
+                                                (selector) => {
+                                                    const btn = document.querySelector(selector);
+                                                    if (!btn) return null;
+                                                    return {
+                                                        tagName: btn.tagName,
+                                                        type: btn.type,
+                                                        className: btn.className,
+                                                        id: btn.id,
+                                                        disabled: btn.disabled,
+                                                        hasOnClick: !!btn.onclick,
+                                                        hasForm: !!btn.form,
+                                                        dataAttributes: Array.from(btn.attributes)
+                                                            .filter(attr => attr.name.startsWith('data-'))
+                                                            .map(attr => attr.name + '=' + attr.value)
+                                                    };
+                                                }
+                                                """
+                                                button_info = await page.evaluate(js_inspect, safe_sel)
                                                 self.logger.info(f"🔍 Button inspection: {button_info}")
                                             except Exception as e:
                                                 self.logger.warning(f"Could not inspect button: {e}")
@@ -338,7 +340,8 @@ class FormFiller:
                                             # APPROACH 1: Try to find and submit the form directly
                                             try:
                                                 self.logger.info("Approach 1: Trying to submit form directly...")
-                                                form_submitted = await page.evaluate('''
+                                                js_form_submit = """
+                                                () => {
                                                     const forms = document.querySelectorAll('form');
                                                     for (let form of forms) {
                                                         const submitBtn = form.querySelector('button[type="submit"]');
@@ -348,7 +351,9 @@ class FormFiller:
                                                         }
                                                     }
                                                     return false;
-                                                ''')
+                                                }
+                                                """
+                                                form_submitted = await page.evaluate(js_form_submit)
                                                 if form_submitted:
                                                     self.logger.info("✅ Form submitted directly via form.submit()")
                                                     click_success = True
@@ -362,15 +367,17 @@ class FormFiller:
                                                 try:
                                                     self.logger.info("Approach 2: JavaScript click on button...")
                                                     safe_selector = selector.replace("'", "\\'")
-                                                    js_code = f'''
-                                                        const btn = document.querySelector('{safe_selector}');
-                                                        if (btn) {{
+                                                    js_click = """
+                                                    (sel) => {
+                                                        const btn = document.querySelector(sel);
+                                                        if (btn) {
                                                             btn.click();
                                                             return true;
-                                                        }}
+                                                        }
                                                         return false;
-                                                    '''
-                                                    result = await page.evaluate(js_code)
+                                                    }
+                                                    """
+                                                    result = await page.evaluate(js_click, safe_selector)
                                                     if result:
                                                         self.logger.info("✅ Clicked via JavaScript")
                                                         click_success = True
@@ -382,17 +389,19 @@ class FormFiller:
                                                 try:
                                                     self.logger.info("Approach 3: Dispatching mouse events...")
                                                     safe_selector = selector.replace("'", "\\'")
-                                                    event_result = await page.evaluate(f'''
-                                                        const btn = document.querySelector('{safe_selector}');
-                                                        if (btn) {{
-                                                            // Dispatch all mouse events in sequence
-                                                            btn.dispatchEvent(new MouseEvent('mousedown', {{ bubbles: true, cancelable: true, view: window }}));
-                                                            btn.dispatchEvent(new MouseEvent('mouseup', {{ bubbles: true, cancelable: true, view: window }}));
-                                                            btn.dispatchEvent(new MouseEvent('click', {{ bubbles: true, cancelable: true, view: window }}));
+                                                    js_events = """
+                                                    (sel) => {
+                                                        const btn = document.querySelector(sel);
+                                                        if (btn) {
+                                                            btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
+                                                            btn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
+                                                            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
                                                             return true;
-                                                        }}
+                                                        }
                                                         return false;
-                                                    ''')
+                                                    }
+                                                    """
+                                                    event_result = await page.evaluate(js_events, safe_selector)
                                                     if event_result:
                                                         self.logger.info("✅ Mouse events dispatched")
                                                         click_success = True
@@ -419,10 +428,13 @@ class FormFiller:
                                             for wait_attempt in range(10):  # Try for 10 seconds
                                                 try:
                                                     # Check if popup with "Ne, hvala (nastavi)" appeared
-                                                    has_popup = await page.evaluate('''
+                                                    js_check_popup = """
+                                                    () => {
                                                         const body = document.body.textContent || '';
                                                         return body.includes('Ne, hvala') || body.includes('nastavi') || body.includes('Čestitamo');
-                                                    ''')
+                                                    }
+                                                    """
+                                                    has_popup = await page.evaluate(js_check_popup)
 
                                                     if has_popup:
                                                         self.logger.info(f"✅ Order bump popup appeared after {wait_attempt + 1} seconds!")
