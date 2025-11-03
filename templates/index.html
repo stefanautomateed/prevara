@@ -171,13 +171,31 @@
         }
 
         .btn-primary {
-            background: linear-gradient(135deg, #ff0844 0%, #ff6b6b 100%);
+            background: linear-gradient(135deg, #000000 0%, #434343 100%);
             color: white;
-            font-weight: 700;
+            font-weight: 900;
+            font-size: 1.1rem;
+            padding: 18px 24px !important;
+            border: 3px solid #ff0844;
+            box-shadow: 0 0 20px rgba(255, 8, 68, 0.5), 0 0 40px rgba(255, 8, 68, 0.3);
+            animation: pulseGlow 2s infinite;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        @keyframes pulseGlow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(255, 8, 68, 0.5), 0 0 40px rgba(255, 8, 68, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(255, 8, 68, 0.8), 0 0 60px rgba(255, 8, 68, 0.5), 0 0 80px rgba(255, 8, 68, 0.3);
+            }
         }
 
         .btn-primary:hover {
-            background: linear-gradient(135deg, #d10038 0%, #ff5252 100%);
+            background: linear-gradient(135deg, #1a1a1a 0%, #5a5a5a 100%);
+            transform: scale(1.05) translateY(-2px);
+            box-shadow: 0 0 30px rgba(255, 8, 68, 0.8), 0 0 60px rgba(255, 8, 68, 0.5);
         }
 
         .btn-success {
@@ -323,9 +341,9 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>💀 PREVARA KONTROLNA TABLA 🔥</h1>
-            <p>Automatski Napad na Konkurenciju</p>
-            <div class="subtitle">Kad si First Time Player a igraš kao Professional 😎</div>
+            <h1>⚫ ZA CRNE DANE ⚫</h1>
+            <p>Štiti Poziciju - Automatski 24/7</p>
+            <div class="subtitle">Rezervisan Plan B za Teške Situacije 😈</div>
         </div>
 
         <div id="alert" class="alert"></div>
@@ -333,7 +351,7 @@
         <div class="dashboard">
             <!-- Status Card -->
             <div class="card">
-                <h2>🎯 Status Napada</h2>
+                <h2>🎯 Status Sistema</h2>
                 <div class="stat">
                     <span class="stat-label">Trenutno Stanje</span>
                     <span id="current-status" class="status-badge status-idle">Na Čekanju</span>
@@ -354,21 +372,21 @@
 
             <!-- Statistics Card -->
             <div class="card">
-                <h2>📈 Statistika Prevare</h2>
+                <h2>📈 Statistika Za Crne Dane</h2>
                 <div class="stat">
-                    <span class="stat-label">Ukupno Napada</span>
+                    <span class="stat-label">Ukupno Izvršeno</span>
                     <span id="total-runs" class="stat-value">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Uspešno Userani 💪</span>
+                    <span class="stat-label">Uspešno Pokrenuto 💪</span>
                     <span id="successful-runs" class="stat-value" style="color: #10b981;">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Promašaji 😅</span>
+                    <span class="stat-label">Neuspelo 😅</span>
                     <span id="failed-runs" class="stat-value" style="color: #ef4444;">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Procenat Uspeha</span>
+                    <span class="stat-label">Efikasnost Plana</span>
                     <span id="success-rate" class="stat-value">0%</span>
                 </div>
             </div>
@@ -378,13 +396,13 @@
                 <h2>🎮 Kontrole</h2>
                 <div class="controls">
                     <button id="run-btn" class="btn btn-primary" onclick="triggerRun()">
-                        💣 POKRENI NAPAD ODMAH!
+                        ⚫ DUGME ZA CRNE DANE ⚫
                     </button>
                     <button id="start-scheduler-btn" class="btn btn-success" onclick="startScheduler()">
-                        ⏰ Uključi Auto-Režim
+                        ⏰ Aktiviraj Auto-Pilot
                     </button>
                     <button id="stop-scheduler-btn" class="btn btn-danger" onclick="stopScheduler()" disabled>
-                        ⏸️ Zaustavi Auto-Režim
+                        ⏸️ Isključi Auto-Pilot
                     </button>
                     <button class="btn btn-secondary" onclick="refreshStatus()">
                         🔄 Osvježi Status
@@ -407,7 +425,7 @@
         <!-- Logs Section -->
         <div class="logs-section">
             <div class="logs-header">
-                <h2>📋 Log Napada (Šta se dešava)</h2>
+                <h2>📋 Izvršavanje Plana (Live)</h2>
                 <button class="btn btn-secondary" onclick="refreshLogs()" style="width: auto; padding: 8px 16px; margin: 0;">
                     🔄 Osvježi
                 </button>
@@ -444,10 +462,10 @@
                 const currentStatus = document.getElementById('current-status');
 
                 if (status.running) {
-                    currentStatus.textContent = 'U TOKU NAPAD! 💥';
+                    currentStatus.textContent = 'AKTIVNO - IZVRŠAVANJE! 💥';
                     currentStatus.className = 'status-badge status-running';
                 } else {
-                    currentStatus.textContent = 'Čeka Komandu';
+                    currentStatus.textContent = 'Spreman - Čeka Plan';
                     currentStatus.className = 'status-badge status-idle';
                 }
 
@@ -462,13 +480,13 @@
                 // Update last status
                 const lastStatusEl = document.getElementById('last-status');
                 if (status.last_status === 'success') {
-                    lastStatusEl.textContent = '✅ USERANI USPEŠNO! 🔥';
+                    lastStatusEl.textContent = '✅ PLAN USPEŠNO IZVRŠEN! 🔥';
                     lastStatusEl.style.color = '#10b981';
                 } else if (status.last_status === 'failed' || status.last_status === 'error') {
-                    lastStatusEl.textContent = '❌ Nije Prošlo (Retry!)';
+                    lastStatusEl.textContent = '❌ Greška u Planu (Pokušaj Ponovo)';
                     lastStatusEl.style.color = '#ef4444';
                 } else if (status.last_status === 'partial') {
-                    lastStatusEl.textContent = '⚠️ Delimično Uspešno';
+                    lastStatusEl.textContent = '⚠️ Delimično Izvršeno';
                     lastStatusEl.style.color = '#f59e0b';
                 } else {
                     lastStatusEl.textContent = '-';
@@ -478,12 +496,12 @@
                 // Update scheduler status
                 const schedulerStatus = document.getElementById('scheduler-status');
                 if (status.scheduler_active) {
-                    schedulerStatus.textContent = 'AKTIVNA - Auto Spam! 🚀';
+                    schedulerStatus.textContent = 'Auto-Pilot Uključen 🚀';
                     schedulerStatus.className = 'status-badge status-success';
                     document.getElementById('start-scheduler-btn').disabled = true;
                     document.getElementById('stop-scheduler-btn').disabled = false;
                 } else {
-                    schedulerStatus.textContent = 'Isključena';
+                    schedulerStatus.textContent = 'Manuelni Režim';
                     schedulerStatus.className = 'status-badge status-idle';
                     document.getElementById('start-scheduler-btn').disabled = false;
                     document.getElementById('stop-scheduler-btn').disabled = true;
@@ -546,7 +564,7 @@
                     // Auto-scroll to bottom
                     logsContainer.scrollTop = logsContainer.scrollHeight;
                 } else {
-                    logsContainer.innerHTML = '<div class="log-line">Nema logova. Pokreni napad da vidiš akciju! 🎯</div>';
+                    logsContainer.innerHTML = '<div class="log-line">Nema aktivnosti. Pritisni "Dugme Za Crne Dane" da pokreneš plan! ⚫</div>';
                 }
 
             } catch (error) {
@@ -558,7 +576,7 @@
         async function triggerRun() {
             const btn = document.getElementById('run-btn');
             btn.disabled = true;
-            btn.innerHTML = '💣 NAPAD U TOKU... 💥';
+            btn.innerHTML = '⚫ IZVRŠAVANJE PLANA... ⚫';
 
             try {
                 const response = await fetch('/api/run', {
@@ -568,9 +586,9 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    showAlert('🔥 ' + data.message, 'success');
+                    showAlert('🔥 Plan Za Crne Dane Aktiviran!\n' + data.message, 'success');
                 } else {
-                    showAlert('⚠️ ' + data.message, 'error');
+                    showAlert('⚠️ Problem sa Izvršavanjem:\n' + data.message, 'error');
                 }
 
                 await refreshStatus();
@@ -578,10 +596,10 @@
 
             } catch (error) {
                 console.error('Error triggering run:', error);
-                showAlert('❌ Greška pri pokretanju napada!', 'error');
+                showAlert('❌ Greška pri aktivaciji plana!', 'error');
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '💣 POKRENI NAPAD ODMAH!';
+                btn.innerHTML = '⚫ DUGME ZA CRNE DANE ⚫';
             }
         }
 
