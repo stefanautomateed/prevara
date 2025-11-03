@@ -265,37 +265,92 @@ class FormFiller:
                     except Exception as e:
                         self.logger.warning(f"Could not verify form fields: {e}")
 
-                    # SUBMIT THE FORM
+                    # CRITICAL: Find ALL buttons on page to see what's available
+                    try:
+                        self.logger.info("=" * 80)
+                        self.logger.info("FINDING ALL BUTTONS ON PAGE:")
+                        all_buttons_info = await page.evaluate("""
+                        () => {
+                            const buttons = document.querySelectorAll('button, input[type="submit"], input[type="button"], a[role="button"]');
+                            return Array.from(buttons).map((btn, index) => ({
+                                index: index + 1,
+                                text: btn.textContent.trim() || btn.value || '',
+                                type: btn.type || btn.tagName,
+                                id: btn.id || '',
+                                className: btn.className || '',
+                                visible: btn.offsetParent !== null,
+                                disabled: btn.disabled || false
+                            }));
+                        }
+                        """)
+                        for btn in all_buttons_info[:15]:  # Show first 15
+                            if btn['visible']:
+                                self.logger.info(f"  Button {btn['index']}: '{btn['text']}' (type={btn['type']}, disabled={btn['disabled']})")
+                        self.logger.info("=" * 80)
+                    except Exception as e:
+                        self.logger.warning(f"Could not enumerate buttons: {e}")
+
+                    # SUBMIT THE FORM - Try standard selectors first
                     submit_clicked = False
                     for selector in submit_selectors:
                         try:
-                            # Check what the button actually does
-                            button_info = await page.evaluate(f"""
-                            () => {{
-                                const btn = document.querySelector('{selector}');
-                                if (!btn) return null;
-                                return {{
-                                    type: btn.type,
-                                    form: btn.form ? {{
-                                        action: btn.form.action,
-                                        method: btn.form.method,
-                                        hasSubmit: true
-                                    }} : null,
-                                    onclick: btn.onclick ? 'has onclick' : 'no onclick',
-                                    disabled: btn.disabled
-                                }};
-                            }}
-                            """)
-                            if button_info:
-                                self.logger.info(f"Button '{selector}' info: {button_info}")
+                            count = await page.locator(selector).count()
+                            if count > 0:
+                                # Check what the button actually does
+                                button_info = await page.evaluate(f"""
+                                () => {{
+                                    const btn = document.querySelector('{selector}');
+                                    if (!btn) return null;
+                                    return {{
+                                        type: btn.type,
+                                        form: btn.form ? {{
+                                            action: btn.form.action,
+                                            method: btn.form.method,
+                                            hasSubmit: true
+                                        }} : null,
+                                        onclick: btn.onclick ? 'has onclick' : 'no onclick',
+                                        disabled: btn.disabled
+                                    }};
+                                }}
+                                """)
+                                if button_info:
+                                    self.logger.info(f"Button '{selector}' info: {button_info}")
 
-                            await page.click(selector, timeout=2000)
-                            self.logger.info(f"Clicked submit button using selector: {selector}")
-                            submit_clicked = True
-                            await self.random_delay()
-                            break
-                        except:
+                                await page.click(selector, timeout=2000)
+                                self.logger.info(f"✅ Clicked submit button using selector: {selector}")
+                                submit_clicked = True
+                                await self.random_delay()
+                                break
+                        except Exception as e:
+                            self.logger.debug(f"Selector {selector} failed: {e}")
                             continue
+
+                    # FALLBACK: Try to find button by partial text match
+                    if not submit_clicked:
+                        try:
+                            self.logger.warning("Standard selectors failed, trying JavaScript search for 'Naruči' button...")
+                            js_find_submit = """
+                            () => {
+                                const buttons = document.querySelectorAll('button, input[type="submit"]');
+                                for (let btn of buttons) {
+                                    const text = (btn.textContent || btn.value || '').toLowerCase();
+                                    if (text.includes('naruči') || text.includes('naruci') || text.includes('poruč')) {
+                                        btn.click();
+                                        return {found: true, text: btn.textContent || btn.value};
+                                    }
+                                }
+                                return {found: false};
+                            }
+                            """
+                            result = await page.evaluate(js_find_submit)
+                            if result.get('found'):
+                                self.logger.info(f"✅ Found and clicked submit button via JS: '{result.get('text')}'")
+                                submit_clicked = True
+                                await self.random_delay()
+                            else:
+                                self.logger.error("❌ Could not find any submit button with 'Naruči' text!")
+                        except Exception as e:
+                            self.logger.error(f"JavaScript button search failed: {e}")
 
                     if submit_clicked:
                         # Wait for navigation or success message
