@@ -43,6 +43,9 @@ class FormFiller:
         """
         profile = SerbianDataGenerator.generate_complete_profile()
         self.logger.info(f"Generated profile: {profile['name']}, {profile['phone']}")
+        self.logger.info(f"  Email: {profile['email']}")
+        self.logger.info(f"  Address: {profile['address']}")
+        self.logger.info(f"  City: {profile['city']}, ZIP: {profile['postal_code']}")
 
         async with async_playwright() as p:
             try:
@@ -271,7 +274,19 @@ class FormFiller:
                         # Handle order bump / upsell popups (especially for limitlesss.rs)
                         try:
                             self.logger.info("Looking for order bump/upsell offers...")
-                            await self.random_delay()  # Give the popup time to appear
+
+                            # Give MORE time for the popup to appear (5 seconds instead of random 1-3)
+                            self.logger.info("Waiting 5 seconds for order bump popup to load...")
+                            await asyncio.sleep(5)
+
+                            # Take screenshot to see what's on the page
+                            try:
+                                await page.screenshot(
+                                    path=f'logs/order_bump_check_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
+                                )
+                                self.logger.info("Screenshot taken for order bump investigation")
+                            except:
+                                pass
 
                             # Look for order bump reject/decline buttons
                             order_bump_reject_selectors = [
@@ -302,24 +317,40 @@ class FormFiller:
                             for selector in order_bump_reject_selectors:
                                 try:
                                     # Check if order bump button exists
-                                    if await page.locator(selector).count() > 0:
+                                    count = await page.locator(selector).count()
+                                    if count > 0:
+                                        self.logger.info(f"FOUND order bump button! Selector: {selector}, Count: {count}")
                                         await page.click(selector, timeout=3000)
-                                        self.logger.info(f"Clicked order bump REJECT button: {selector}")
+                                        self.logger.info(f"✅ Clicked order bump REJECT button: {selector}")
                                         order_bump_found = True
                                         await self.random_delay()
 
                                         # Wait for any final navigation
                                         try:
                                             await page.wait_for_load_state('networkidle', timeout=5000)
+                                            self.logger.info("Page loaded after order bump decline")
                                         except:
                                             pass
 
                                         break
-                                except:
+                                except Exception as e:
+                                    # Log errors for debugging
+                                    if "timeout" not in str(e).lower():
+                                        self.logger.debug(f"Could not click {selector}: {e}")
                                     continue
 
                             if not order_bump_found:
-                                self.logger.info("No order bump/upsell popup found (or already handled)")
+                                self.logger.warning("⚠️ NO order bump button found! Checking page...")
+                                # Log current URL to help debug
+                                current_url = page.url
+                                self.logger.info(f"Current URL: {current_url}")
+
+                                # Try to get page title
+                                try:
+                                    title = await page.title()
+                                    self.logger.info(f"Page title: {title}")
+                                except:
+                                    pass
 
                         except Exception as e:
                             self.logger.info(f"Order bump handling error (likely no order bump present): {e}")
