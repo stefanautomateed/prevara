@@ -241,7 +241,8 @@ def health():
     return jsonify({'status': 'healthy'}), 200
 
 
-if __name__ == '__main__':
+def init_app():
+    """Initialize the application."""
     # Create logs directory
     os.makedirs('logs', exist_ok=True)
 
@@ -250,11 +251,21 @@ if __name__ == '__main__':
 
     if auto_start:
         logger.info("Auto-starting scheduler on app startup")
+        global scheduler_thread
         scheduler_thread = threading.Thread(target=run_scheduler_thread, daemon=True)
         scheduler_thread.start()
 
+    logger.info("Application initialized successfully")
+
+
+# Initialize app when loaded (for gunicorn)
+init_app()
+
+
+if __name__ == '__main__':
     # Get port from environment (Railway sets this)
     port = int(os.getenv('PORT', 5000))
+    logger.info(f"Starting Flask development server on port {port}")
 
     # Run Flask app
     app.run(host='0.0.0.0', port=port, debug=False)

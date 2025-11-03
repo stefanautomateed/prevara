@@ -48,12 +48,14 @@ RUN playwright install chromium --with-deps || playwright install chromium
 # Copy application code
 COPY . .
 
+# Make start script executable
+RUN chmod +x start.sh
+
 # Create logs directory
 RUN mkdir -p logs
 
 # Expose port (Railway will set PORT env var)
 EXPOSE 5000
 
-# Run the web application with gunicorn
-# Using shell form to allow PORT env var expansion
-CMD gunicorn --bind 0.0.0.0:${PORT:-5000} --workers 1 --threads 2 --timeout 300 app:app
+# Run the web application via startup script
+CMD ["./start.sh"]
