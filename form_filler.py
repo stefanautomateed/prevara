@@ -337,30 +337,66 @@ class FormFiller:
                                             # Try multiple approaches to click/submit
                                             click_success = False
 
-                                            # APPROACH 1: Try to find and submit the form directly
+                                            # APPROACH 1: Direct HTTP POST (bypass UI completely)
                                             try:
-                                                self.logger.info("Approach 1: Trying to submit form directly...")
-                                                js_form_submit = """
+                                                self.logger.info("Approach 1: Direct HTTP POST request...")
+
+                                                # Extract form data and action URL
+                                                js_extract_form = """
                                                 () => {
                                                     const forms = document.querySelectorAll('form');
                                                     for (let form of forms) {
                                                         const submitBtn = form.querySelector('button[type="submit"]');
                                                         if (submitBtn && submitBtn.textContent.includes('Potvrdi')) {
-                                                            form.submit();
-                                                            return true;
+                                                            const formData = {};
+                                                            const inputs = form.querySelectorAll('input, select, textarea');
+                                                            inputs.forEach(input => {
+                                                                if (input.name) {
+                                                                    formData[input.name] = input.value || '';
+                                                                }
+                                                            });
+                                                            return {
+                                                                action: form.action || window.location.href,
+                                                                method: form.method || 'POST',
+                                                                data: formData
+                                                            };
                                                         }
                                                     }
-                                                    return false;
+                                                    return null;
                                                 }
                                                 """
-                                                form_submitted = await page.evaluate(js_form_submit)
-                                                if form_submitted:
-                                                    self.logger.info("✅ Form submitted directly via form.submit()")
-                                                    click_success = True
+                                                form_info = await page.evaluate(js_extract_form)
+
+                                                if form_info:
+                                                    self.logger.info(f"Form action: {form_info['action']}")
+                                                    self.logger.info(f"Form method: {form_info['method']}")
+                                                    self.logger.info(f"Form data keys: {list(form_info['data'].keys())}")
+
+                                                    # Send POST request using Playwright's request context
+                                                    response = await page.request.post(
+                                                        form_info['action'],
+                                                        data=form_info['data'],
+                                                        headers={
+                                                            'Content-Type': 'application/x-www-form-urlencoded',
+                                                            'Referer': page.url
+                                                        }
+                                                    )
+
+                                                    self.logger.info(f"POST response status: {response.status}")
+
+                                                    if response.ok:
+                                                        self.logger.info("✅ HTTP POST successful!")
+                                                        # Reload page to see result
+                                                        await page.reload()
+                                                        await asyncio.sleep(2)
+                                                        click_success = True
+                                                    else:
+                                                        self.logger.warning(f"POST failed with status {response.status}")
                                                 else:
-                                                    self.logger.info("No form found for direct submission")
+                                                    self.logger.info("Could not extract form info for POST")
+
                                             except Exception as e:
-                                                self.logger.warning(f"Form submission approach failed: {e}")
+                                                self.logger.warning(f"HTTP POST approach failed: {e}")
 
                                             # APPROACH 2: JavaScript click on button
                                             if not click_success:
