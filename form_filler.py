@@ -396,11 +396,8 @@ class FormFiller:
                             self.logger.info("=" * 80)
                             self.logger.info(f"✅ SUCCESS! Navigated to: {current_url}")
                             self.logger.info("=" * 80)
-                            # Skip any confirmation dialog handling - we're done!
-                            break
-
-                        # If URL didn't change, check what's on the page now
-                        if current_url == self.target_url or 'noro.rs/' == current_url.rstrip('/').split('/')[-1]:
+                        # If URL didn't change, try alternatives
+                        elif current_url == self.target_url or 'noro.rs/' == current_url.rstrip('/').split('/')[-1]:
                             self.logger.warning(f"⚠️ URL didn't change from starting page: {current_url}")
                             self.logger.warning("This suggests the form submission didn't work properly")
 
@@ -470,20 +467,16 @@ class FormFiller:
 
                                     if 'thank-you' in final_url:
                                         self.logger.info("✅ SUCCESS via form.submit()!")
-                                        break
                             except Exception as e:
                                 self.logger.error(f"form.submit() failed: {e}")
 
-                        # If we still haven't navigated away, log failure
-                        final_check_url = page.url
-                        if final_check_url == self.target_url or final_check_url.rstrip('/') == self.target_url.rstrip('/'):
-                            self.logger.error("=" * 80)
-                            self.logger.error("❌ SUBMISSION FAILED - URL did not change")
-                            self.logger.error(f"Still at: {final_check_url}")
-                            self.logger.error("=" * 80)
-
-                        # Break out of submit button loop since we've attempted submission
-                        break
+                            # Final check after all attempts
+                            final_check_url = page.url
+                            if final_check_url == self.target_url or final_check_url.rstrip('/') == self.target_url.rstrip('/'):
+                                self.logger.error("=" * 80)
+                                self.logger.error("❌ SUBMISSION FAILED - URL did not change")
+                                self.logger.error(f"Still at: {final_check_url}")
+                                self.logger.error("=" * 80)
                     # Take screenshot after submission
                     try:
                         await page.screenshot(
