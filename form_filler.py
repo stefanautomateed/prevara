@@ -307,25 +307,60 @@ class FormFiller:
                                             await page.locator(selector).first.scroll_into_view_if_needed(timeout=2000)
                                             await asyncio.sleep(1)
 
-                                            # Try JavaScript click first (triggers all JS events)
+                                            # Try multiple approaches to click/submit
+                                            click_success = False
+
+                                            # APPROACH 1: Try to find and submit the form directly
                                             try:
-                                                # Escape quotes in selector for JavaScript
-                                                safe_selector = selector.replace("'", "\\'")
-                                                js_code = f'''
-                                                    const btn = document.querySelector('{safe_selector}');
-                                                    if (btn) {{
-                                                        btn.click();
-                                                        return true;
-                                                    }}
+                                                self.logger.info("Approach 1: Trying to submit form directly...")
+                                                form_submitted = await page.evaluate('''
+                                                    const forms = document.querySelectorAll('form');
+                                                    for (let form of forms) {
+                                                        const submitBtn = form.querySelector('button[type="submit"]');
+                                                        if (submitBtn && submitBtn.textContent.includes('Potvrdi')) {
+                                                            form.submit();
+                                                            return true;
+                                                        }
+                                                    }
                                                     return false;
-                                                '''
-                                                await page.evaluate(js_code)
-                                                self.logger.info("✅ Clicked final order button via JavaScript")
+                                                ''')
+                                                if form_submitted:
+                                                    self.logger.info("✅ Form submitted directly via form.submit()")
+                                                    click_success = True
+                                                else:
+                                                    self.logger.info("No form found for direct submission")
                                             except Exception as e:
-                                                # Fallback to regular click
-                                                self.logger.info(f"JS click failed, trying regular click: {e}")
-                                                await page.click(selector, timeout=5000, force=True)
-                                                self.logger.info("✅ Clicked final order button via Playwright")
+                                                self.logger.warning(f"Form submission approach failed: {e}")
+
+                                            # APPROACH 2: JavaScript click on button
+                                            if not click_success:
+                                                try:
+                                                    self.logger.info("Approach 2: JavaScript click on button...")
+                                                    safe_selector = selector.replace("'", "\\'")
+                                                    js_code = f'''
+                                                        const btn = document.querySelector('{safe_selector}');
+                                                        if (btn) {{
+                                                            btn.click();
+                                                            return true;
+                                                        }}
+                                                        return false;
+                                                    '''
+                                                    result = await page.evaluate(js_code)
+                                                    if result:
+                                                        self.logger.info("✅ Clicked via JavaScript")
+                                                        click_success = True
+                                                except Exception as e:
+                                                    self.logger.warning(f"JS click failed: {e}")
+
+                                            # APPROACH 3: Playwright click with force
+                                            if not click_success:
+                                                try:
+                                                    self.logger.info("Approach 3: Playwright force click...")
+                                                    await page.click(selector, timeout=5000, force=True)
+                                                    self.logger.info("✅ Clicked via Playwright")
+                                                    click_success = True
+                                                except Exception as e:
+                                                    self.logger.error(f"All click approaches failed: {e}")
 
                                             final_button_found = True
 
