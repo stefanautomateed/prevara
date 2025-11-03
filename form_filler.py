@@ -108,7 +108,10 @@ class FormFiller:
                     for selector in name_selectors:
                         try:
                             await page.fill(selector, profile['name'], timeout=2000)
+                            # Verify the value was actually filled
+                            filled_value = await page.input_value(selector)
                             self.logger.info(f"Filled name field using selector: {selector}")
+                            self.logger.info(f"  ✅ Verified value: '{filled_value}'")
                             await self.random_delay()
                             break
                         except:
@@ -227,15 +230,65 @@ class FormFiller:
                     # Take screenshot before submission
                     try:
                         await page.screenshot(
-                            path=f'logs/before_submit_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
+                            path=f'logs/before_submit_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png',
+                            full_page=True
                         )
                     except:
                         self.logger.warning("Could not take before_submit screenshot (headless mode)")
+
+                    # CRITICAL: Verify all form data is actually filled before submitting
+                    try:
+                        self.logger.info("=" * 80)
+                        self.logger.info("VERIFYING ALL FORM FIELDS BEFORE SUBMISSION:")
+                        verification = await page.evaluate("""
+                        () => {
+                            const inputs = document.querySelectorAll('input, select, textarea');
+                            const values = {};
+                            inputs.forEach(input => {
+                                if (input.name || input.id || input.placeholder) {
+                                    const key = input.name || input.id || input.placeholder;
+                                    values[key] = {
+                                        value: input.value || '',
+                                        type: input.type,
+                                        required: input.required || input.hasAttribute('required'),
+                                        visible: input.offsetParent !== null
+                                    };
+                                }
+                            });
+                            return values;
+                        }
+                        """)
+                        for key, data in verification.items():
+                            if data['visible'] and (data['value'] or data['required']):
+                                self.logger.info(f"  {key}: '{data['value']}' (required={data['required']})")
+                        self.logger.info("=" * 80)
+                    except Exception as e:
+                        self.logger.warning(f"Could not verify form fields: {e}")
 
                     # SUBMIT THE FORM
                     submit_clicked = False
                     for selector in submit_selectors:
                         try:
+                            # Check what the button actually does
+                            button_info = await page.evaluate(f"""
+                            () => {{
+                                const btn = document.querySelector('{selector}');
+                                if (!btn) return null;
+                                return {{
+                                    type: btn.type,
+                                    form: btn.form ? {{
+                                        action: btn.form.action,
+                                        method: btn.form.method,
+                                        hasSubmit: true
+                                    }} : null,
+                                    onclick: btn.onclick ? 'has onclick' : 'no onclick',
+                                    disabled: btn.disabled
+                                }};
+                            }}
+                            """)
+                            if button_info:
+                                self.logger.info(f"Button '{selector}' info: {button_info}")
+
                             await page.click(selector, timeout=2000)
                             self.logger.info(f"Clicked submit button using selector: {selector}")
                             submit_clicked = True
