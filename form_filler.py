@@ -371,8 +371,39 @@ class FormFiller:
                             except:
                                 pass
 
-                        # Handle any confirmation dialogs/popups
+                        # IMPORTANT: Check if there's actually a confirmation dialog
+                        # If clicking submit just shows the form again, DON'T click any confirmation!
                         try:
+                            # Wait a moment to see if a dialog appears
+                            await asyncio.sleep(3)
+
+                            # Check for modal/dialog text to understand what it's asking
+                            modal_text = await page.evaluate("""
+                            () => {
+                                const modals = document.querySelectorAll('[role="dialog"], .modal, [class*="modal"], [class*="popup"]');
+                                for (let modal of modals) {
+                                    if (modal.offsetParent !== null) {
+                                        return {
+                                            found: true,
+                                            text: modal.textContent.substring(0, 500)
+                                        };
+                                    }
+                                }
+                                return {found: false};
+                            }
+                            """)
+
+                            if modal_text.get('found'):
+                                self.logger.info(f"📋 Modal/Dialog detected with text: {modal_text.get('text', '')[:200]}")
+                            else:
+                                self.logger.info("No modal/dialog detected after submit - checking if form progressed...")
+                                current_url = page.url
+                                if 'thank-you' in current_url or current_url != self.target_url:
+                                    self.logger.info(f"✅ Form submitted successfully! New URL: {current_url}")
+                                    # Skip confirmation dialog handling
+                                    raise Exception("Form already submitted, skip dialog handling")
+
+                            # Handle any confirmation dialogs/popups ONLY if detected
                             # Look for common confirmation buttons
                             confirmation_selectors = [
                                 'button:has-text("OK")',
@@ -390,12 +421,15 @@ class FormFiller:
                                 try:
                                     # Check if button exists
                                     if await page.locator(selector).count() > 0:
+                                        btn_text = await page.locator(selector).first.inner_text()
+                                        self.logger.info(f"Found confirmation button: '{btn_text.strip()}'")
+
                                         await page.click(selector, timeout=2000)
-                                        self.logger.info(f"Clicked confirmation button: {selector}")
+                                        self.logger.info(f"✅ Clicked confirmation button: {selector}")
                                         await self.random_delay()
 
                                         # Wait for page to update after confirmation
-                                        await asyncio.sleep(2)
+                                        await asyncio.sleep(3)
 
                                         # CRITICAL: Check for required product/quantity selections
                                         try:
