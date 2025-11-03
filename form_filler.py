@@ -275,6 +275,8 @@ class FormFiller:
 
                             # Look for order bump reject/decline buttons
                             order_bump_reject_selectors = [
+                                'button:has-text("Ne, hvala (nastavi)")',  # Exact match for limitlesss.rs
+                                'button:has-text("nastavi")',  # Partial match
                                 'button:has-text("Ne hvala")',
                                 'button:has-text("Ne, hvala")',
                                 'button:has-text("Odbij")',
@@ -284,6 +286,8 @@ class FormFiller:
                                 'button:has-text("Preskoči")',
                                 'button:has-text("Zatvori")',
                                 'button:has-text("Close")',
+                                'a:has-text("Ne, hvala (nastavi)")',
+                                'a:has-text("nastavi")',
                                 'a:has-text("Ne hvala")',
                                 'a:has-text("Ne, hvala")',
                                 'a:has-text("Odbij")',
