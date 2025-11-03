@@ -271,6 +271,57 @@ class FormFiller:
                         except Exception as e:
                             self.logger.info(f"No confirmation dialog found or handled: {e}")
 
+                        # NEW: Click final "Potvrdi porudžbinu" button (for limitlesss.rs checkout)
+                        try:
+                            self.logger.info("Looking for final order confirmation button...")
+                            await asyncio.sleep(2)  # Wait for page to stabilize
+
+                            final_confirmation_selectors = [
+                                'button:has-text("Potvrdi porudžbinu")',  # Main button
+                                'button:has-text("Potvrdi")',  # Generic
+                                '[class*="checkout"]:has-text("Potvrdi")',
+                                '[class*="confirm"]:has-text("Potvrdi")',
+                                'button[type="submit"]:has-text("Potvrdi")',
+                            ]
+
+                            final_button_found = False
+                            for selector in final_confirmation_selectors:
+                                try:
+                                    count = await page.locator(selector).count()
+                                    if count > 0:
+                                        # Get button text to verify it's the right one
+                                        btn_text = await page.locator(selector).first.inner_text()
+                                        if "porudžbinu" in btn_text.lower() or "rsd" in btn_text.lower():
+                                            self.logger.info(f"🎯 Found final confirmation button: '{btn_text.strip()}'")
+
+                                            # Scroll into view
+                                            await page.locator(selector).first.scroll_into_view_if_needed(timeout=2000)
+
+                                            # Click it
+                                            await page.click(selector, timeout=3000, force=True)
+                                            self.logger.info(f"✅ Clicked final order confirmation button!")
+                                            final_button_found = True
+
+                                            # Wait for page to process
+                                            await asyncio.sleep(3)
+                                            try:
+                                                await page.wait_for_load_state('networkidle', timeout=10000)
+                                                self.logger.info("Page loaded after final confirmation")
+                                            except:
+                                                pass
+
+                                            break
+                                except Exception as e:
+                                    if "timeout" not in str(e).lower():
+                                        self.logger.debug(f"Could not check selector {selector}: {e}")
+                                    continue
+
+                            if not final_button_found:
+                                self.logger.info("No final 'Potvrdi porudžbinu' button found (might already be past checkout)")
+
+                        except Exception as e:
+                            self.logger.info(f"Final confirmation check error: {e}")
+
                         # Handle order bump / upsell popups (especially for limitlesss.rs)
                         try:
                             self.logger.info("Looking for order bump/upsell offers...")
