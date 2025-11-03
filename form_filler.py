@@ -289,17 +289,63 @@ class FormFiller:
                                         # Wait for page to update after confirmation
                                         await asyncio.sleep(2)
 
-                                        # Check if there are quantity selectors or package options that need selection
+                                        # CRITICAL: Check for required product/quantity selections
                                         try:
-                                            self.logger.info("Checking for quantity/package selectors...")
+                                            self.logger.info("Checking for required product/quantity/variant selectors...")
 
-                                            # Look for quantity dropdowns or buttons
+                                            # 1. Check for radio buttons (product variants, quantities)
+                                            radio_buttons = await page.locator('input[type="radio"]').all()
+                                            if radio_buttons:
+                                                self.logger.info(f"Found {len(radio_buttons)} radio buttons")
+                                                for i, radio in enumerate(radio_buttons):
+                                                    try:
+                                                        is_visible = await radio.is_visible()
+                                                        is_checked = await radio.is_checked()
+                                                        label = await page.evaluate("""
+                                                        (radio) => {
+                                                            const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
+                                                            return label ? label.textContent.trim() : '';
+                                                        }
+                                                        """, radio)
+                                                        self.logger.info(f"  Radio {i+1}: visible={is_visible}, checked={is_checked}, label='{label}'")
+
+                                                        # If none are checked, check the first visible one
+                                                        if not is_checked and is_visible:
+                                                            await radio.click(force=True)
+                                                            self.logger.info(f"  ✅ Selected radio button: '{label}'")
+                                                            await asyncio.sleep(0.5)
+                                                            break
+                                                    except Exception as e:
+                                                        self.logger.debug(f"Radio button {i} error: {e}")
+                                                        continue
+
+                                            # 2. Check for unchecked checkboxes that might be required
+                                            checkboxes = await page.locator('input[type="checkbox"]').all()
+                                            if checkboxes:
+                                                self.logger.info(f"Found {len(checkboxes)} checkboxes")
+                                                for i, checkbox in enumerate(checkboxes):
+                                                    try:
+                                                        is_checked = await checkbox.is_checked()
+                                                        is_visible = await checkbox.is_visible()
+                                                        if not is_checked and is_visible:
+                                                            label = await page.evaluate("""
+                                                            (cb) => {
+                                                                const label = cb.closest('label') || document.querySelector(`label[for="${cb.id}"]`);
+                                                                return label ? label.textContent.trim() : '';
+                                                            }
+                                                            """, checkbox)
+                                                            self.logger.info(f"  Checkbox {i+1}: unchecked, label='{label}'")
+                                                    except:
+                                                        continue
+
+                                            # 3. Look for quantity dropdowns or input fields
                                             quantity_selectors = [
                                                 'select[name*="quantity"]',
                                                 'select[name*="količina"]',
                                                 'input[name*="quantity"]',
                                                 'input[name*="količina"]',
-                                                '[class*="quantity"]',
+                                                'select.quantity',
+                                                'input.quantity',
                                             ]
 
                                             for qty_sel in quantity_selectors:
@@ -308,13 +354,20 @@ class FormFiller:
                                                         self.logger.info(f"Found quantity selector: {qty_sel}")
                                                         # Try to select a quantity if it's a select element
                                                         if 'select' in qty_sel:
-                                                            await page.select_option(qty_sel, index=0)  # Select first option
-                                                            self.logger.info("Selected first quantity option")
+                                                            await page.select_option(qty_sel, index=1)  # Select first actual option (skip placeholder)
+                                                            self.logger.info("Selected quantity option")
+                                                        elif 'input' in qty_sel:
+                                                            current_val = await page.input_value(qty_sel)
+                                                            self.logger.info(f"Quantity input current value: '{current_val}'")
+                                                            if not current_val or current_val == '0':
+                                                                await page.fill(qty_sel, '1')
+                                                                self.logger.info("Set quantity to 1")
                                                         break
-                                                except:
+                                                except Exception as e:
+                                                    self.logger.debug(f"Quantity selector error: {e}")
                                                     continue
-                                        except:
-                                            pass
+                                        except Exception as e:
+                                            self.logger.warning(f"Error checking selectors: {e}")
 
                                         # After confirmation, look for final completion button (noro.rs)
                                         completion_selectors = [
@@ -373,6 +426,40 @@ class FormFiller:
                                                     still_exists = await page.locator(comp_sel).count() > 0
                                                     if still_exists:
                                                         self.logger.error(f"❌ BUTTON STILL EXISTS - Click failed!")
+
+                                                        # Try alternative: Submit the form directly
+                                                        try:
+                                                            self.logger.info("Attempting direct form submission as fallback...")
+                                                            form_submitted = await page.evaluate("""
+                                                            () => {
+                                                                // Find the button with "Završi" text
+                                                                const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Završi'));
+                                                                if (btn && btn.form) {
+                                                                    btn.form.submit();
+                                                                    return true;
+                                                                }
+                                                                // Or find form by checking all forms
+                                                                const forms = document.querySelectorAll('form');
+                                                                for (let form of forms) {
+                                                                    const submitBtn = Array.from(form.querySelectorAll('button')).find(b => b.textContent.includes('Završi'));
+                                                                    if (submitBtn) {
+                                                                        form.submit();
+                                                                        return true;
+                                                                    }
+                                                                }
+                                                                return false;
+                                                            }
+                                                            """)
+                                                            if form_submitted:
+                                                                self.logger.info("✅ Submitted form directly!")
+                                                                await asyncio.sleep(3)
+                                                                final_url = page.url
+                                                                self.logger.info(f"📍 URL after form submit: {final_url}")
+                                                            else:
+                                                                self.logger.error("Could not find form to submit")
+                                                        except Exception as e:
+                                                            self.logger.error(f"Form submission failed: {e}")
+
                                                         # Log page content to see any error messages
                                                         page_text = await page.evaluate("() => document.body.innerText")
                                                         if "error" in page_text.lower() or "greška" in page_text.lower():
