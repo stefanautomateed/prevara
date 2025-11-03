@@ -279,21 +279,57 @@ class FormFiller:
                             self.logger.info("Waiting 5 seconds for order bump popup to load...")
                             await asyncio.sleep(5)
 
-                            # Take screenshot to see what's on the page
+                            # Scroll to bottom of page to ensure popup is loaded and visible
                             try:
-                                await page.screenshot(
-                                    path=f'logs/order_bump_check_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
-                                )
-                                self.logger.info("Screenshot taken for order bump investigation")
+                                await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
+                                self.logger.info("Scrolled to bottom of page")
+                                await asyncio.sleep(1)
+                                # Scroll back to middle
+                                await page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
+                                self.logger.info("Scrolled to middle of page")
+                                await asyncio.sleep(1)
                             except:
                                 pass
 
-                            # Look for order bump reject/decline buttons
+                            # Take screenshot to see what's on the page
+                            try:
+                                await page.screenshot(
+                                    path=f'logs/order_bump_check_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png',
+                                    full_page=True
+                                )
+                                self.logger.info("Full page screenshot taken for order bump investigation")
+                            except:
+                                pass
+
+                            # Log all buttons on the page for debugging
+                            try:
+                                all_buttons = await page.locator('button, a[role="button"], input[type="submit"], input[type="button"]').all()
+                                self.logger.info(f"Total buttons found on page: {len(all_buttons)}")
+                                for i, btn in enumerate(all_buttons[:20]):  # Log first 20 buttons
+                                    try:
+                                        text = await btn.inner_text()
+                                        self.logger.info(f"Button {i+1}: '{text.strip()}'")
+                                    except:
+                                        pass
+                            except Exception as e:
+                                self.logger.warning(f"Could not enumerate buttons: {e}")
+
+                            # Look for order bump reject/decline buttons with more variations
                             order_bump_reject_selectors = [
-                                'button:has-text("Ne, hvala (nastavi)")',  # Exact match for limitlesss.rs
-                                'button:has-text("nastavi")',  # Partial match
-                                'button:has-text("Ne hvala")',
+                                # Exact text matches (case-insensitive)
+                                'button:has-text("Ne, hvala (nastavi)")',
+                                'a:has-text("Ne, hvala (nastavi)")',
                                 'button:has-text("Ne, hvala")',
+                                'a:has-text("Ne, hvala")',
+
+                                # Partial matches
+                                'button:has-text("nastavi")',
+                                'a:has-text("nastavi")',
+                                'button:has-text("hvala")',
+                                'a:has-text("hvala")',
+
+                                # Common variations
+                                'button:has-text("Ne hvala")',
                                 'button:has-text("Odbij")',
                                 'button:has-text("Decline")',
                                 'button:has-text("No thanks")',
@@ -301,16 +337,28 @@ class FormFiller:
                                 'button:has-text("Preskoči")',
                                 'button:has-text("Zatvori")',
                                 'button:has-text("Close")',
-                                'a:has-text("Ne, hvala (nastavi)")',
-                                'a:has-text("nastavi")',
+
+                                # Links
                                 'a:has-text("Ne hvala")',
-                                'a:has-text("Ne, hvala")',
                                 'a:has-text("Odbij")',
+
+                                # By class/id
                                 '[class*="decline"]',
                                 '[class*="reject"]',
                                 '[class*="skip"]',
+                                '[class*="no-thanks"]',
                                 '[id*="decline"]',
-                                '[id*="reject"]'
+                                '[id*="reject"]',
+
+                                # Generic "close" or "continue" selectors
+                                'button.close',
+                                'button.skip',
+                                'a.close',
+                                'a.skip',
+
+                                # By text content (any element)
+                                '*:has-text("Ne, hvala (nastavi)")',
+                                '*:has-text("nastavi")'
                             ]
 
                             order_bump_found = False
@@ -319,8 +367,18 @@ class FormFiller:
                                     # Check if order bump button exists
                                     count = await page.locator(selector).count()
                                     if count > 0:
-                                        self.logger.info(f"FOUND order bump button! Selector: {selector}, Count: {count}")
-                                        await page.click(selector, timeout=3000)
+                                        self.logger.info(f"🎯 FOUND order bump button! Selector: {selector}, Count: {count}")
+
+                                        # Try to scroll element into view first
+                                        try:
+                                            element = page.locator(selector).first
+                                            await element.scroll_into_view_if_needed(timeout=2000)
+                                            self.logger.info("Scrolled element into view")
+                                        except:
+                                            pass
+
+                                        # Try to click
+                                        await page.click(selector, timeout=3000, force=True)
                                         self.logger.info(f"✅ Clicked order bump REJECT button: {selector}")
                                         order_bump_found = True
                                         await self.random_delay()
@@ -351,6 +409,19 @@ class FormFiller:
                                     self.logger.info(f"Page title: {title}")
                                 except:
                                     pass
+
+                                # Get page HTML for debugging
+                                try:
+                                    html_content = await page.content()
+                                    # Log if we find any text containing "nastavi" or "hvala"
+                                    if "nastavi" in html_content.lower() or "hvala" in html_content.lower():
+                                        self.logger.info("⚠️ Found 'nastavi' or 'hvala' in page HTML but couldn't match selector!")
+                                        # Save HTML for inspection
+                                        with open(f'logs/order_bump_html_{datetime.now().strftime("%Y%m%d_%H%M%S")}.html', 'w', encoding='utf-8') as f:
+                                            f.write(html_content)
+                                        self.logger.info("Saved page HTML to logs/ for inspection")
+                                except Exception as e:
+                                    self.logger.warning(f"Could not check page HTML: {e}")
 
                         except Exception as e:
                             self.logger.info(f"Order bump handling error (likely no order bump present): {e}")
