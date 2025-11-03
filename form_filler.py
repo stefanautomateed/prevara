@@ -309,14 +309,17 @@ class FormFiller:
 
                                             # Try JavaScript click first (triggers all JS events)
                                             try:
-                                                await page.evaluate(f'''
-                                                    const btn = document.querySelector('{selector.replace("'", "\\'")}');
+                                                # Escape quotes in selector for JavaScript
+                                                safe_selector = selector.replace("'", "\\'")
+                                                js_code = f'''
+                                                    const btn = document.querySelector('{safe_selector}');
                                                     if (btn) {{
                                                         btn.click();
                                                         return true;
                                                     }}
                                                     return false;
-                                                ''')
+                                                '''
+                                                await page.evaluate(js_code)
                                                 self.logger.info("✅ Clicked final order button via JavaScript")
                                             except Exception as e:
                                                 # Fallback to regular click
