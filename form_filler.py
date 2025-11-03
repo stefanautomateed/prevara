@@ -285,6 +285,34 @@ class FormFiller:
                                         await page.click(selector, timeout=2000)
                                         self.logger.info(f"Clicked confirmation button: {selector}")
                                         await self.random_delay()
+
+                                        # Wait for page to update after confirmation
+                                        await asyncio.sleep(2)
+
+                                        # After confirmation, look for final completion button (noro.rs)
+                                        completion_selectors = [
+                                            'button:has-text("Završi Naručivanje")',
+                                            'button:has-text("Završi")',
+                                            'button:has-text("Complete Order")',
+                                            'button:has-text("Završi porudžbinu")',
+                                        ]
+
+                                        for comp_sel in completion_selectors:
+                                            try:
+                                                if await page.locator(comp_sel).count() > 0:
+                                                    btn_text = await page.locator(comp_sel).first.inner_text()
+                                                    self.logger.info(f"🎯 Found order completion button: '{btn_text.strip()}'")
+                                                    await page.click(comp_sel, timeout=5000)
+                                                    self.logger.info(f"✅ Clicked order completion button!")
+
+                                                    # Wait for navigation to thank-you page
+                                                    await asyncio.sleep(3)
+                                                    new_url = page.url
+                                                    self.logger.info(f"📍 URL after completion button: {new_url}")
+                                                    break
+                                            except:
+                                                continue
+
                                         break
                                 except:
                                     continue
@@ -293,21 +321,17 @@ class FormFiller:
                             self.logger.info(f"No confirmation dialog found or handled: {e}")
 
                         # CRITICAL: Select product package BEFORE clicking "Potvrdi porudžbinu"
-                        # This is required for limitlesss.rs checkout flow
+                        # This is ONLY for limitlesss.rs checkout flow, not for noro.rs
                         try:
                             self.logger.info("Looking for product package selection buttons...")
                             await asyncio.sleep(2)  # Wait for page to stabilize
 
-                            # Common package selection button patterns
+                            # Very specific package selection button patterns (avoid FAQ buttons)
+                            # Only match actual product package names, not questions
                             package_selectors = [
-                                'button:has-text("Optimalna")',  # "Optimalna ušteda" package
-                                'button:has-text("ušteda")',
-                                'button:has-text("Start")',      # "Start paket"
-                                'button:has-text("paket")',
-                                'button:has-text("All-in")',     # "All-in paket"
-                                '[class*="package"]:has-text("paket")',
-                                '[class*="product"]:has-text("paket")',
-                                'button[type="button"]:has-text("paket")',
+                                'button:has-text("Optimalna ušteda")',  # Full text match for limitlesss.rs
+                                'button:has-text("Start paket")',
+                                'button:has-text("All-in paket")',
                             ]
 
                             package_found = False
@@ -317,6 +341,12 @@ class FormFiller:
                                     if count > 0:
                                         # Get button text to verify it's a package button
                                         btn_text = await page.locator(selector).first.inner_text()
+
+                                        # Double check it's not an FAQ button (contains question mark)
+                                        if '?' in btn_text:
+                                            self.logger.debug(f"Skipping FAQ button: '{btn_text.strip()}'")
+                                            continue
+
                                         self.logger.info(f"🎯 Found package button: '{btn_text.strip()}'")
 
                                         # Scroll into view
@@ -341,10 +371,10 @@ class FormFiller:
                             if package_found:
                                 self.logger.info("✅ Package selected - proceeding to checkout confirmation")
                             else:
-                                self.logger.warning("⚠️ No package selection button found (might not be needed for this site)")
+                                self.logger.info("ℹ️ No package selection needed (this is normal for noro.rs)")
 
                         except Exception as e:
-                            self.logger.info(f"Package selection error (might not be needed): {e}")
+                            self.logger.info(f"Package selection not applicable for this site: {e}")
 
                         # NEW: Click final "Potvrdi porudžbinu" button (for limitlesss.rs checkout)
                         try:
