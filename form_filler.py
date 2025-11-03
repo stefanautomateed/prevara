@@ -303,6 +303,31 @@ class FormFiller:
                                             url_before = page.url
                                             self.logger.info(f"URL before click: {url_before}")
 
+                                            # INSPECT button properties first
+                                            try:
+                                                safe_sel = selector.replace("'", "\\'")
+                                                button_info = await page.evaluate(f'''
+                                                    const btn = document.querySelector('{safe_sel}');
+                                                    if (btn) {{
+                                                        return {{
+                                                            tagName: btn.tagName,
+                                                            type: btn.type,
+                                                            className: btn.className,
+                                                            id: btn.id,
+                                                            disabled: btn.disabled,
+                                                            hasOnClick: !!btn.onclick,
+                                                            hasForm: !!btn.form,
+                                                            dataAttributes: Array.from(btn.attributes)
+                                                                .filter(attr => attr.name.startsWith('data-'))
+                                                                .map(attr => attr.name + '=' + attr.value)
+                                                        }};
+                                                    }}
+                                                    return null;
+                                                ''')
+                                                self.logger.info(f"🔍 Button inspection: {button_info}")
+                                            except Exception as e:
+                                                self.logger.warning(f"Could not inspect button: {e}")
+
                                             # Scroll into view
                                             await page.locator(selector).first.scroll_into_view_if_needed(timeout=2000)
                                             await asyncio.sleep(1)
@@ -352,38 +377,70 @@ class FormFiller:
                                                 except Exception as e:
                                                     self.logger.warning(f"JS click failed: {e}")
 
-                                            # APPROACH 3: Playwright click with force
+                                            # APPROACH 3: Dispatch mouse events (most realistic)
                                             if not click_success:
                                                 try:
-                                                    self.logger.info("Approach 3: Playwright force click...")
+                                                    self.logger.info("Approach 3: Dispatching mouse events...")
+                                                    safe_selector = selector.replace("'", "\\'")
+                                                    event_result = await page.evaluate(f'''
+                                                        const btn = document.querySelector('{safe_selector}');
+                                                        if (btn) {{
+                                                            // Dispatch all mouse events in sequence
+                                                            btn.dispatchEvent(new MouseEvent('mousedown', {{ bubbles: true, cancelable: true, view: window }}));
+                                                            btn.dispatchEvent(new MouseEvent('mouseup', {{ bubbles: true, cancelable: true, view: window }}));
+                                                            btn.dispatchEvent(new MouseEvent('click', {{ bubbles: true, cancelable: true, view: window }}));
+                                                            return true;
+                                                        }}
+                                                        return false;
+                                                    ''')
+                                                    if event_result:
+                                                        self.logger.info("✅ Mouse events dispatched")
+                                                        click_success = True
+                                                except Exception as e:
+                                                    self.logger.warning(f"Mouse event dispatch failed: {e}")
+
+                                            # APPROACH 4: Playwright click with force (last resort)
+                                            if not click_success:
+                                                try:
+                                                    self.logger.info("Approach 4: Playwright force click...")
                                                     await page.click(selector, timeout=5000, force=True)
                                                     self.logger.info("✅ Clicked via Playwright")
                                                     click_success = True
                                                 except Exception as e:
-                                                    self.logger.error(f"All click approaches failed: {e}")
+                                                    self.logger.error(f"All 4 click approaches failed: {e}")
 
                                             final_button_found = True
 
-                                            # Wait for navigation or popup to appear (important!)
-                                            self.logger.info("Waiting for page navigation/update...")
-                                            try:
-                                                # Wait for URL change OR popup to appear
-                                                await asyncio.sleep(2)
-                                                await page.wait_for_load_state('networkidle', timeout=15000)
+                                            # Wait for popup/modal to appear (user said it's on same page!)
+                                            self.logger.info("Waiting for order bump popup/modal to appear...")
 
-                                                url_after = page.url
-                                                self.logger.info(f"URL after click: {url_after}")
+                                            # Wait for modal/popup with specific text
+                                            popup_appeared = False
+                                            for wait_attempt in range(10):  # Try for 10 seconds
+                                                try:
+                                                    # Check if popup with "Ne, hvala (nastavi)" appeared
+                                                    has_popup = await page.evaluate('''
+                                                        const body = document.body.textContent || '';
+                                                        return body.includes('Ne, hvala') || body.includes('nastavi') || body.includes('Čestitamo');
+                                                    ''')
 
-                                                if url_after != url_before:
-                                                    self.logger.info(f"✅ Page navigated from {url_before} to {url_after}")
+                                                    if has_popup:
+                                                        self.logger.info(f"✅ Order bump popup appeared after {wait_attempt + 1} seconds!")
+                                                        popup_appeared = True
+                                                        break
+
+                                                    await asyncio.sleep(1)
+                                                except:
+                                                    await asyncio.sleep(1)
+
+                                            if not popup_appeared:
+                                                self.logger.warning("⚠️ Order bump popup did NOT appear after clicking!")
+                                                # Check if we're still on checkout page
+                                                still_has_button = await page.locator(selector).count() > 0
+                                                if still_has_button:
+                                                    self.logger.error("❌ Button is STILL there - click FAILED completely!")
                                                 else:
-                                                    self.logger.warning(f"⚠️ URL did not change - still on {url_after}")
-
-                                            except Exception as e:
-                                                self.logger.warning(f"Navigation wait error: {e}")
-
-                                            # Additional wait for any JavaScript to execute
-                                            await asyncio.sleep(3)
+                                                    self.logger.info("Button disappeared but no popup - might have progressed")
 
                                             break
                                 except Exception as e:
