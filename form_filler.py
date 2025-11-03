@@ -78,6 +78,11 @@ class FormFiller:
                 await page.goto(self.target_url, wait_until='networkidle', timeout=30000)
                 await self.random_delay()
 
+                # Log starting URL
+                self.logger.info("=" * 80)
+                self.logger.info(f"📍 STARTING URL: {page.url}")
+                self.logger.info("=" * 80)
+
                 # Take a screenshot for debugging (saved to logs/)
                 await page.screenshot(path=f'logs/page_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png')
 
@@ -244,8 +249,19 @@ class FormFiller:
                         try:
                             await page.wait_for_load_state('networkidle', timeout=10000)
                             self.logger.info("Page loaded after submission")
+
+                            # Log URL immediately after submission
+                            url_after_submit = page.url
+                            self.logger.info(f"📍 URL after form submit: {url_after_submit}")
+
                         except:
                             self.logger.warning("Timeout waiting for page load, continuing...")
+                            # Still log URL even if timeout
+                            try:
+                                url_after_submit = page.url
+                                self.logger.info(f"📍 URL after form submit (timeout): {url_after_submit}")
+                            except:
+                                pass
 
                         # Handle any confirmation dialogs/popups
                         try:
@@ -748,6 +764,33 @@ class FormFiller:
                         )
                     except:
                         self.logger.warning("Could not take after_submit screenshot (headless mode)")
+
+                    # Track final URL after all processing
+                    try:
+                        final_url = page.url
+                        self.logger.info("=" * 80)
+                        self.logger.info(f"🎯 FINAL URL AFTER ORDERING: {final_url}")
+                        self.logger.info("=" * 80)
+
+                        # Check if we're on a success/thank-you page
+                        page_content = await page.content()
+                        success_keywords = ['hvala', 'thank', 'success', 'uspešno', 'potvrda', 'confirmation', 'order', 'porudžbina']
+
+                        found_keywords = [kw for kw in success_keywords if kw in page_content.lower()]
+                        if found_keywords:
+                            self.logger.info(f"✅ Success page detected (keywords: {', '.join(found_keywords)})")
+                        else:
+                            self.logger.warning("⚠️ Not sure if order was successful - no success keywords found")
+
+                        # Log page title for context
+                        try:
+                            page_title = await page.title()
+                            self.logger.info(f"📄 Page title: {page_title}")
+                        except:
+                            pass
+
+                    except Exception as e:
+                        self.logger.warning(f"Could not track final URL: {e}")
 
                     if submit_clicked:
                         self.logger.info("Form submission completed successfully!")
