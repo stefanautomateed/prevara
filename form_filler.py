@@ -212,31 +212,74 @@ class FormFiller:
                     ]
 
                     # Take screenshot before submission
-                    await page.screenshot(
-                        path=f'logs/before_submit_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
-                    )
+                    try:
+                        await page.screenshot(
+                            path=f'logs/before_submit_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
+                        )
+                    except:
+                        self.logger.warning("Could not take before_submit screenshot (headless mode)")
 
-                    # UNCOMMENT TO ACTUALLY SUBMIT THE FORM
-                    # for selector in submit_selectors:
-                    #     try:
-                    #         await page.click(selector, timeout=2000)
-                    #         self.logger.info(f"Clicked submit button using selector: {selector}")
-                    #         await self.random_delay()
-                    #         break
-                    #     except:
-                    #         continue
+                    # SUBMIT THE FORM
+                    submit_clicked = False
+                    for selector in submit_selectors:
+                        try:
+                            await page.click(selector, timeout=2000)
+                            self.logger.info(f"Clicked submit button using selector: {selector}")
+                            submit_clicked = True
+                            await self.random_delay()
+                            break
+                        except:
+                            continue
 
-                    # Wait for navigation or success message
-                    # await page.wait_for_load_state('networkidle', timeout=10000)
+                    if submit_clicked:
+                        # Wait for navigation or success message
+                        try:
+                            await page.wait_for_load_state('networkidle', timeout=10000)
+                            self.logger.info("Page loaded after submission")
+                        except:
+                            self.logger.warning("Timeout waiting for page load, continuing...")
+
+                        # Handle any confirmation dialogs/popups
+                        try:
+                            # Look for common confirmation buttons
+                            confirmation_selectors = [
+                                'button:has-text("OK")',
+                                'button:has-text("Potvrdi")',
+                                'button:has-text("Da")',
+                                'button:has-text("Accept")',
+                                'button:has-text("Prihvati")',
+                                'button:has-text("Close")',
+                                'button:has-text("Zatvori")',
+                                '.modal button',
+                                '.confirmation button'
+                            ]
+
+                            for selector in confirmation_selectors:
+                                try:
+                                    # Check if button exists
+                                    if await page.locator(selector).count() > 0:
+                                        await page.click(selector, timeout=2000)
+                                        self.logger.info(f"Clicked confirmation button: {selector}")
+                                        await self.random_delay()
+                                        break
+                                except:
+                                    continue
+
+                        except Exception as e:
+                            self.logger.info(f"No confirmation dialog found or handled: {e}")
 
                     # Take screenshot after submission
-                    await page.screenshot(
-                        path=f'logs/after_submit_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
-                    )
+                    try:
+                        await page.screenshot(
+                            path=f'logs/after_submit_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png'
+                        )
+                    except:
+                        self.logger.warning("Could not take after_submit screenshot (headless mode)")
 
-                    self.logger.info("Form filling completed successfully!")
-                    self.logger.warning("NOTE: Form submission is currently DISABLED for safety")
-                    self.logger.warning("Uncomment the submit section in form_filler.py to enable")
+                    if submit_clicked:
+                        self.logger.info("Form submission completed successfully!")
+                    else:
+                        self.logger.warning("Could not find submit button - form filled but not submitted")
 
                 except PlaywrightTimeout as e:
                     self.logger.error(f"Timeout while filling form: {e}")

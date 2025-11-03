@@ -91,7 +91,7 @@ def get_status():
     return jsonify({
         'status': automation_status,
         'config': {
-            'target_url': config['target_url'],
+            'target_urls': config['target_urls'],
             'schedule_times': config['schedule_times'],
             'headless': config['headless']
         },
@@ -110,39 +110,59 @@ def trigger_run():
 
     try:
         automation_status['running'] = True
-        logger.info("Manual trigger: Starting form submission")
+        logger.info("Manual trigger: Starting form submission for all URLs")
 
         config = get_config()
 
-        # Run the form filler
-        result = asyncio.run(run_single_form_fill(
-            target_url=config['target_url'],
-            headless=config['headless'],
-            min_delay=config['min_delay'],
-            max_delay=config['max_delay']
-        ))
+        # Run the form filler for all URLs
+        all_success = True
+        results = []
+
+        for target_url in config['target_urls']:
+            try:
+                logger.info(f"Manual trigger: Processing {target_url}")
+
+                result = asyncio.run(run_single_form_fill(
+                    target_url=target_url,
+                    headless=config['headless'],
+                    min_delay=config['min_delay'],
+                    max_delay=config['max_delay']
+                ))
+
+                automation_status['total_runs'] += 1
+
+                if result:
+                    automation_status['successful_runs'] += 1
+                    results.append(f"✅ {target_url}")
+                    logger.info(f"Manual trigger: {target_url} completed successfully")
+                else:
+                    automation_status['failed_runs'] += 1
+                    all_success = False
+                    results.append(f"❌ {target_url}")
+                    logger.error(f"Manual trigger: {target_url} failed")
+
+            except Exception as e:
+                automation_status['failed_runs'] += 1
+                automation_status['total_runs'] += 1
+                all_success = False
+                results.append(f"❌ {target_url} (error)")
+                logger.error(f"Manual trigger error for {target_url}: {e}")
 
         automation_status['running'] = False
         automation_status['last_run'] = datetime.now().isoformat()
-        automation_status['total_runs'] += 1
+        automation_status['last_status'] = 'success' if all_success else 'partial' if len(results) > 0 else 'failed'
 
-        if result:
-            automation_status['successful_runs'] += 1
-            automation_status['last_status'] = 'success'
-            logger.info("Manual trigger: Form submission completed successfully")
+        result_message = '\n'.join(results)
 
+        if all_success:
             return jsonify({
                 'success': True,
-                'message': 'Form submission completed successfully'
+                'message': f'All form submissions completed successfully!\n{result_message}'
             })
         else:
-            automation_status['failed_runs'] += 1
-            automation_status['last_status'] = 'failed'
-            logger.error("Manual trigger: Form submission failed")
-
             return jsonify({
                 'success': False,
-                'message': 'Form submission failed. Check logs for details.'
+                'message': f'Some submissions failed:\n{result_message}'
             }), 500
 
     except Exception as e:
@@ -219,20 +239,39 @@ def stop_scheduler():
 def get_logs():
     """Get recent logs."""
     try:
-        log_file = Path('logs/app.log')
-        if not log_file.exists():
-            return jsonify({'logs': []})
+        # Collect logs from all log files
+        all_logs = []
 
-        with open(log_file, 'r') as f:
-            lines = f.readlines()
-            # Return last 100 lines
-            recent = lines[-100:] if len(lines) > 100 else lines
+        # Try app.log
+        app_log = Path('logs/app.log')
+        if app_log.exists():
+            with open(app_log, 'r') as f:
+                all_logs.extend(f.readlines())
+
+        # Try form_filler.log
+        form_log = Path('logs/form_filler.log')
+        if form_log.exists():
+            with open(form_log, 'r') as f:
+                all_logs.extend(f.readlines())
+
+        # Try scheduler.log
+        scheduler_log = Path('logs/scheduler.log')
+        if scheduler_log.exists():
+            with open(scheduler_log, 'r') as f:
+                all_logs.extend(f.readlines())
+
+        # If no logs found, return empty
+        if not all_logs:
+            return jsonify({'logs': ['No logs available yet. Logs will appear after first run.']})
+
+        # Sort by timestamp and return last 100 lines
+        recent = all_logs[-100:] if len(all_logs) > 100 else all_logs
 
         return jsonify({'logs': recent})
 
     except Exception as e:
         logger.error(f"Error reading logs: {e}")
-        return jsonify({'logs': [], 'error': str(e)}), 500
+        return jsonify({'logs': [f'Error reading logs: {str(e)}'], 'error': str(e)}), 500
 
 
 @app.route('/health')

@@ -451,8 +451,8 @@
                 const configList = document.getElementById('config-list');
                 configList.innerHTML = `
                     <li>
-                        <span class="config-label">Target URL</span>
-                        <span class="config-value">${config.target_url}</span>
+                        <span class="config-label">Target URLs</span>
+                        <span class="config-value">${config.target_urls ? config.target_urls.join(', ') : 'Not configured'}</span>
                     </li>
                     <li>
                         <span class="config-label">Schedule Times</span>

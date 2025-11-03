@@ -29,8 +29,12 @@ logger = logging.getLogger(__name__)
 
 def get_config():
     """Load configuration from environment variables."""
+    # Support both TARGET_URL (single) and TARGET_URLS (multiple)
+    target_urls_str = os.getenv('TARGET_URLS', os.getenv('TARGET_URL', 'https://noro.rs/'))
+    target_urls = [url.strip() for url in target_urls_str.split(',')]
+
     return {
-        'target_url': os.getenv('TARGET_URL', 'https://noro.rs/'),
+        'target_urls': target_urls,
         'schedule_times': os.getenv('SCHEDULE_TIMES', '10:00,14:00,18:00').split(','),
         'headless': os.getenv('HEADLESS', 'false').lower() == 'true',
         'min_delay': float(os.getenv('MIN_DELAY', '1')),
@@ -46,22 +50,26 @@ def job():
 
     config = get_config()
 
-    try:
-        # Run the async form filling
-        result = asyncio.run(run_single_form_fill(
-            target_url=config['target_url'],
-            headless=config['headless'],
-            min_delay=config['min_delay'],
-            max_delay=config['max_delay']
-        ))
+    # Run form fills for all target URLs
+    for target_url in config['target_urls']:
+        try:
+            logger.info(f"Processing {target_url}")
 
-        if result:
-            logger.info("Scheduled form fill completed successfully!")
-        else:
-            logger.error("Scheduled form fill failed!")
+            # Run the async form filling
+            result = asyncio.run(run_single_form_fill(
+                target_url=target_url,
+                headless=config['headless'],
+                min_delay=config['min_delay'],
+                max_delay=config['max_delay']
+            ))
 
-    except Exception as e:
-        logger.error(f"Error in scheduled job: {e}")
+            if result:
+                logger.info(f"Form fill for {target_url} completed successfully!")
+            else:
+                logger.error(f"Form fill for {target_url} failed!")
+
+        except Exception as e:
+            logger.error(f"Error processing {target_url}: {e}")
 
     logger.info("=" * 60)
 
@@ -71,7 +79,7 @@ def setup_scheduler():
     config = get_config()
 
     logger.info("Setting up scheduler...")
-    logger.info(f"Target URL: {config['target_url']}")
+    logger.info(f"Target URLs: {', '.join(config['target_urls'])}")
     logger.info(f"Headless mode: {config['headless']}")
     logger.info(f"Schedule times: {config['schedule_times']}")
 
