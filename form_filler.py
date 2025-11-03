@@ -371,723 +371,119 @@ class FormFiller:
                             except:
                                 pass
 
-                        # IMPORTANT: Check if there's actually a confirmation dialog
-                        # If clicking submit just shows the form again, DON'T click any confirmation!
-                        try:
-                            # Wait a moment to see if a dialog appears
-                            await asyncio.sleep(3)
+                        # CRITICAL: Wait for navigation or processing after submit
+                        self.logger.info("=" * 80)
+                        self.logger.info("⏳ Waiting for order processing/navigation...")
+                        self.logger.info("=" * 80)
 
-                            # Check for modal/dialog text to understand what it's asking
-                            modal_text = await page.evaluate("""
+                        try:
+                            # Wait for navigation to complete (e.g., to thank-you page)
+                            # Use wait_for_load_state with a reasonable timeout
+                            await page.wait_for_load_state('networkidle', timeout=8000)
+                            self.logger.info("✅ Network idle detected")
+                        except:
+                            self.logger.info("⚠️ Network idle timeout (page might still be processing)")
+
+                        # Give additional time for any redirects or JavaScript
+                        await asyncio.sleep(2)
+
+                        # Check current URL after waiting
+                        current_url = page.url
+                        self.logger.info(f"📍 Current URL after waiting: {current_url}")
+
+                        # Check if we successfully navigated to thank-you/success page
+                        if 'thank-you' in current_url or 'success' in current_url or 'potvrda' in current_url:
+                            self.logger.info("=" * 80)
+                            self.logger.info(f"✅ SUCCESS! Navigated to: {current_url}")
+                            self.logger.info("=" * 80)
+                            # Skip any confirmation dialog handling - we're done!
+                            break
+
+                        # If URL didn't change, check what's on the page now
+                        if current_url == self.target_url or 'noro.rs/' == current_url.rstrip('/').split('/')[-1]:
+                            self.logger.warning(f"⚠️ URL didn't change from starting page: {current_url}")
+                            self.logger.warning("This suggests the form submission didn't work properly")
+
+                            # Check ALL visible buttons to understand what options we have
+                            self.logger.info("=" * 80)
+                            self.logger.info("🔍 ANALYZING ALL VISIBLE BUTTONS ON PAGE:")
+                            all_buttons = await page.evaluate("""
                             () => {
-                                const modals = document.querySelectorAll('[role="dialog"], .modal, [class*="modal"], [class*="popup"]');
-                                for (let modal of modals) {
-                                    if (modal.offsetParent !== null) {
-                                        return {
-                                            found: true,
-                                            text: modal.textContent.substring(0, 500)
-                                        };
+                                const buttons = document.querySelectorAll('button, input[type="submit"], input[type="button"]');
+                                return Array.from(buttons)
+                                    .filter(btn => btn.offsetParent !== null)  // Only visible
+                                    .map(btn => ({
+                                        text: (btn.textContent || btn.value || '').trim(),
+                                        type: btn.type || btn.tagName,
+                                        id: btn.id,
+                                        className: btn.className,
+                                        disabled: btn.disabled
+                                    }));
+                            }
+                            """)
+
+                            for i, btn in enumerate(all_buttons[:10], 1):
+                                self.logger.info(f"  Button {i}: '{btn['text']}' (disabled={btn['disabled']})")
+                            self.logger.info("=" * 80)
+
+                            # Check for error messages or validation failures
+                            error_check = await page.evaluate("""
+                            () => {
+                                const errorSelectors = [
+                                    '.error', '.alert-danger', '[class*="error"]',
+                                    '[class*="invalid"]', '[role="alert"]'
+                                ];
+                                for (let sel of errorSelectors) {
+                                    const elem = document.querySelector(sel);
+                                    if (elem && elem.offsetParent !== null) {
+                                        return {found: true, text: elem.textContent.substring(0, 200)};
                                     }
                                 }
                                 return {found: false};
                             }
                             """)
 
-                            if modal_text.get('found'):
-                                self.logger.info(f"📋 Modal/Dialog detected with text: {modal_text.get('text', '')[:200]}")
-                            else:
-                                self.logger.info("No modal/dialog detected after submit - checking if form progressed...")
-                                current_url = page.url
-                                if 'thank-you' in current_url or current_url != self.target_url:
-                                    self.logger.info(f"✅ Form submitted successfully! New URL: {current_url}")
-                                    # Skip confirmation dialog handling
-                                    raise Exception("Form already submitted, skip dialog handling")
+                            if error_check.get('found'):
+                                self.logger.error(f"❌ ERROR MESSAGE DETECTED: {error_check.get('text')}")
 
-                            # Handle any confirmation dialogs/popups ONLY if detected
-                            # Look for common confirmation buttons
-                            confirmation_selectors = [
-                                'button:has-text("OK")',
-                                'button:has-text("Potvrdi")',
-                                'button:has-text("Da")',
-                                'button:has-text("Accept")',
-                                'button:has-text("Prihvati")',
-                                'button:has-text("Close")',
-                                'button:has-text("Zatvori")',
-                                '.modal button',
-                                '.confirmation button'
-                            ]
+                            # DON'T automatically click any confirmation dialogs
+                            # Instead, try alternative submission method
+                            self.logger.warning("Attempting alternative: Direct form.submit() call...")
+                            try:
+                                submit_result = await page.evaluate("""
+                                () => {
+                                    const form = document.querySelector('form');
+                                    if (form) {
+                                        form.submit();
+                                        return {success: true, action: form.action};
+                                    }
+                                    return {success: false};
+                                }
+                                """)
 
-                            for selector in confirmation_selectors:
-                                try:
-                                    # Check if button exists
-                                    if await page.locator(selector).count() > 0:
-                                        btn_text = await page.locator(selector).first.inner_text()
-                                        self.logger.info(f"Found confirmation button: '{btn_text.strip()}'")
+                                if submit_result.get('success'):
+                                    self.logger.info(f"✅ Called form.submit() - action: {submit_result.get('action')}")
+                                    await asyncio.sleep(3)
 
-                                        await page.click(selector, timeout=2000)
-                                        self.logger.info(f"✅ Clicked confirmation button: {selector}")
-                                        await self.random_delay()
+                                    final_url = page.url
+                                    self.logger.info(f"📍 URL after form.submit(): {final_url}")
 
-                                        # Wait for page to update after confirmation
-                                        await asyncio.sleep(3)
-
-                                        # CRITICAL: Check for required product/quantity selections
-                                        try:
-                                            self.logger.info("Checking for required product/quantity/variant selectors...")
-
-                                            # 1. Check for radio buttons (product variants, quantities)
-                                            radio_buttons = await page.locator('input[type="radio"]').all()
-                                            if radio_buttons:
-                                                self.logger.info(f"Found {len(radio_buttons)} radio buttons")
-                                                for i, radio in enumerate(radio_buttons):
-                                                    try:
-                                                        is_visible = await radio.is_visible()
-                                                        is_checked = await radio.is_checked()
-                                                        label = await page.evaluate("""
-                                                        (radio) => {
-                                                            const label = radio.closest('label') || document.querySelector(`label[for="${radio.id}"]`);
-                                                            return label ? label.textContent.trim() : '';
-                                                        }
-                                                        """, radio)
-                                                        self.logger.info(f"  Radio {i+1}: visible={is_visible}, checked={is_checked}, label='{label}'")
-
-                                                        # If none are checked, check the first visible one
-                                                        if not is_checked and is_visible:
-                                                            await radio.click(force=True)
-                                                            self.logger.info(f"  ✅ Selected radio button: '{label}'")
-                                                            await asyncio.sleep(0.5)
-                                                            break
-                                                    except Exception as e:
-                                                        self.logger.debug(f"Radio button {i} error: {e}")
-                                                        continue
-
-                                            # 2. Check for unchecked checkboxes that might be required
-                                            checkboxes = await page.locator('input[type="checkbox"]').all()
-                                            if checkboxes:
-                                                self.logger.info(f"Found {len(checkboxes)} checkboxes")
-                                                for i, checkbox in enumerate(checkboxes):
-                                                    try:
-                                                        is_checked = await checkbox.is_checked()
-                                                        is_visible = await checkbox.is_visible()
-                                                        if not is_checked and is_visible:
-                                                            label = await page.evaluate("""
-                                                            (cb) => {
-                                                                const label = cb.closest('label') || document.querySelector(`label[for="${cb.id}"]`);
-                                                                return label ? label.textContent.trim() : '';
-                                                            }
-                                                            """, checkbox)
-                                                            self.logger.info(f"  Checkbox {i+1}: unchecked, label='{label}'")
-                                                    except:
-                                                        continue
-
-                                            # 3. Look for quantity dropdowns or input fields
-                                            quantity_selectors = [
-                                                'select[name*="quantity"]',
-                                                'select[name*="količina"]',
-                                                'input[name*="quantity"]',
-                                                'input[name*="količina"]',
-                                                'select.quantity',
-                                                'input.quantity',
-                                            ]
-
-                                            for qty_sel in quantity_selectors:
-                                                try:
-                                                    if await page.locator(qty_sel).count() > 0:
-                                                        self.logger.info(f"Found quantity selector: {qty_sel}")
-                                                        # Try to select a quantity if it's a select element
-                                                        if 'select' in qty_sel:
-                                                            await page.select_option(qty_sel, index=1)  # Select first actual option (skip placeholder)
-                                                            self.logger.info("Selected quantity option")
-                                                        elif 'input' in qty_sel:
-                                                            current_val = await page.input_value(qty_sel)
-                                                            self.logger.info(f"Quantity input current value: '{current_val}'")
-                                                            if not current_val or current_val == '0':
-                                                                await page.fill(qty_sel, '1')
-                                                                self.logger.info("Set quantity to 1")
-                                                        break
-                                                except Exception as e:
-                                                    self.logger.debug(f"Quantity selector error: {e}")
-                                                    continue
-                                        except Exception as e:
-                                            self.logger.warning(f"Error checking selectors: {e}")
-
-                                        # After confirmation, look for final completion button (noro.rs)
-                                        completion_selectors = [
-                                            'button:has-text("Završi Naručivanje")',
-                                            'button:has-text("Završi")',
-                                            'button:has-text("Complete Order")',
-                                            'button:has-text("Završi porudžbinu")',
-                                        ]
-
-                                        for comp_sel in completion_selectors:
-                                            try:
-                                                if await page.locator(comp_sel).count() > 0:
-                                                    btn_text = await page.locator(comp_sel).first.inner_text()
-                                                    self.logger.info(f"🎯 Found order completion button: '{btn_text.strip()}'")
-
-                                                    # Check if button is disabled or has validation issues
-                                                    try:
-                                                        btn_disabled = await page.locator(comp_sel).first.is_disabled()
-                                                        self.logger.info(f"Button disabled status: {btn_disabled}")
-                                                    except:
-                                                        pass
-
-                                                    # Scroll into view
-                                                    await page.locator(comp_sel).first.scroll_into_view_if_needed()
-                                                    await asyncio.sleep(1)
-
-                                                    # Check for any visible error messages before clicking
-                                                    try:
-                                                        error_check = await page.evaluate("""
-                                                        () => {
-                                                            const errors = document.querySelectorAll('.error, .alert, [class*="error"], [class*="invalid"]');
-                                                            const errorTexts = Array.from(errors)
-                                                                .filter(el => el.offsetParent !== null)
-                                                                .map(el => el.textContent.trim())
-                                                                .filter(text => text.length > 0);
-                                                            return errorTexts;
-                                                        }
-                                                        """)
-                                                        if error_check:
-                                                            self.logger.warning(f"⚠️ Validation errors on page: {error_check}")
-                                                    except:
-                                                        pass
-
-                                                    # Try clicking with force=True
-                                                    self.logger.info("Attempting to click 'Završi Naručivanje' button...")
-                                                    await page.click(comp_sel, timeout=5000, force=True)
-                                                    self.logger.info(f"✅ Clicked order completion button!")
-
-                                                    # Wait longer for navigation to thank-you page
-                                                    self.logger.info("Waiting for navigation to thank-you page...")
-                                                    await asyncio.sleep(5)
-                                                    new_url = page.url
-                                                    self.logger.info(f"📍 URL after completion button: {new_url}")
-
-                                                    # Check if button still exists (means click didn't work)
-                                                    still_exists = await page.locator(comp_sel).count() > 0
-                                                    if still_exists:
-                                                        self.logger.error(f"❌ BUTTON STILL EXISTS - Click failed!")
-
-                                                        # Try alternative: Submit the form directly
-                                                        try:
-                                                            self.logger.info("Attempting direct form submission as fallback...")
-                                                            form_submitted = await page.evaluate("""
-                                                            () => {
-                                                                // Find the button with "Završi" text
-                                                                const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent.includes('Završi'));
-                                                                if (btn && btn.form) {
-                                                                    btn.form.submit();
-                                                                    return true;
-                                                                }
-                                                                // Or find form by checking all forms
-                                                                const forms = document.querySelectorAll('form');
-                                                                for (let form of forms) {
-                                                                    const submitBtn = Array.from(form.querySelectorAll('button')).find(b => b.textContent.includes('Završi'));
-                                                                    if (submitBtn) {
-                                                                        form.submit();
-                                                                        return true;
-                                                                    }
-                                                                }
-                                                                return false;
-                                                            }
-                                                            """)
-                                                            if form_submitted:
-                                                                self.logger.info("✅ Submitted form directly!")
-                                                                await asyncio.sleep(3)
-                                                                final_url = page.url
-                                                                self.logger.info(f"📍 URL after form submit: {final_url}")
-                                                            else:
-                                                                self.logger.error("Could not find form to submit")
-                                                        except Exception as e:
-                                                            self.logger.error(f"Form submission failed: {e}")
-
-                                                        # Log page content to see any error messages
-                                                        page_text = await page.evaluate("() => document.body.innerText")
-                                                        if "error" in page_text.lower() or "greška" in page_text.lower():
-                                                            self.logger.error(f"Found error text on page!")
-                                                    else:
-                                                        self.logger.info(f"✅ Button disappeared - order likely submitted!")
-
-                                                    break
-                                            except Exception as e:
-                                                self.logger.error(f"Error clicking completion button: {e}")
-                                                continue
-
+                                    if 'thank-you' in final_url:
+                                        self.logger.info("✅ SUCCESS via form.submit()!")
                                         break
-                                except:
-                                    continue
-
-                        except Exception as e:
-                            self.logger.info(f"No confirmation dialog found or handled: {e}")
-
-                        # CRITICAL: Select product package BEFORE clicking "Potvrdi porudžbinu"
-                        # This is ONLY for limitlesss.rs checkout flow, not for noro.rs
-                        try:
-                            self.logger.info("Looking for product package selection buttons...")
-                            await asyncio.sleep(2)  # Wait for page to stabilize
-
-                            # Very specific package selection button patterns (avoid FAQ buttons)
-                            # Only match actual product package names, not questions
-                            package_selectors = [
-                                'button:has-text("Optimalna ušteda")',  # Full text match for limitlesss.rs
-                                'button:has-text("Start paket")',
-                                'button:has-text("All-in paket")',
-                            ]
-
-                            package_found = False
-                            for selector in package_selectors:
-                                try:
-                                    count = await page.locator(selector).count()
-                                    if count > 0:
-                                        # Get button text to verify it's a package button
-                                        btn_text = await page.locator(selector).first.inner_text()
-
-                                        # Double check it's not an FAQ button (contains question mark)
-                                        if '?' in btn_text:
-                                            self.logger.debug(f"Skipping FAQ button: '{btn_text.strip()}'")
-                                            continue
-
-                                        self.logger.info(f"🎯 Found package button: '{btn_text.strip()}'")
-
-                                        # Scroll into view
-                                        await page.locator(selector).first.scroll_into_view_if_needed(timeout=2000)
-                                        await asyncio.sleep(0.5)
-
-                                        # Click the package button
-                                        await page.click(selector, timeout=5000)
-                                        self.logger.info(f"✅ Clicked package button: '{btn_text.strip()}'")
-                                        package_found = True
-
-                                        # Wait for page to update after package selection
-                                        await asyncio.sleep(2)
-                                        self.logger.info("Waiting for page to update after package selection...")
-
-                                        break
-                                except Exception as e:
-                                    if "timeout" not in str(e).lower():
-                                        self.logger.debug(f"Could not check package selector {selector}: {e}")
-                                    continue
-
-                            if package_found:
-                                self.logger.info("✅ Package selected - proceeding to checkout confirmation")
-                            else:
-                                self.logger.info("ℹ️ No package selection needed (this is normal for noro.rs)")
-
-                        except Exception as e:
-                            self.logger.info(f"Package selection not applicable for this site: {e}")
-
-                        # NEW: Click final "Potvrdi porudžbinu" button (for limitlesss.rs checkout)
-                        try:
-                            self.logger.info("Looking for final order confirmation button...")
-                            await asyncio.sleep(2)  # Wait for page to stabilize
-
-                            final_confirmation_selectors = [
-                                'button:has-text("Potvrdi porudžbinu")',  # Main button
-                                'button:has-text("Potvrdi")',  # Generic
-                                '[class*="checkout"]:has-text("Potvrdi")',
-                                '[class*="confirm"]:has-text("Potvrdi")',
-                                'button[type="submit"]:has-text("Potvrdi")',
-                            ]
-
-                            final_button_found = False
-                            for selector in final_confirmation_selectors:
-                                try:
-                                    count = await page.locator(selector).count()
-                                    if count > 0:
-                                        # Get button text to verify it's the right one
-                                        btn_text = await page.locator(selector).first.inner_text()
-                                        if "porudžbinu" in btn_text.lower() or "rsd" in btn_text.lower():
-                                            self.logger.info(f"🎯 Found final confirmation button: '{btn_text.strip()}'")
-
-                                            # Get current URL before clicking
-                                            url_before = page.url
-                                            self.logger.info(f"URL before click: {url_before}")
-
-                                            # INSPECT button properties first
-                                            try:
-                                                safe_sel = selector.replace("'", "\\'")
-                                                # Use function form to avoid f-string issues
-                                                js_inspect = """
-                                                (selector) => {
-                                                    const btn = document.querySelector(selector);
-                                                    if (!btn) return null;
-                                                    return {
-                                                        tagName: btn.tagName,
-                                                        type: btn.type,
-                                                        className: btn.className,
-                                                        id: btn.id,
-                                                        disabled: btn.disabled,
-                                                        hasOnClick: !!btn.onclick,
-                                                        hasForm: !!btn.form,
-                                                        dataAttributes: Array.from(btn.attributes)
-                                                            .filter(attr => attr.name.startsWith('data-'))
-                                                            .map(attr => attr.name + '=' + attr.value)
-                                                    };
-                                                }
-                                                """
-                                                button_info = await page.evaluate(js_inspect, safe_sel)
-                                                self.logger.info(f"🔍 Button inspection: {button_info}")
-                                            except Exception as e:
-                                                self.logger.warning(f"Could not inspect button: {e}")
-
-                                            # Scroll into view
-                                            await page.locator(selector).first.scroll_into_view_if_needed(timeout=2000)
-                                            await asyncio.sleep(1)
-
-                                            # CAPTURE network requests to see what gets sent
-                                            captured_requests = []
-
-                                            def capture_request(request):
-                                                if request.method in ['POST', 'PUT', 'PATCH']:
-                                                    captured_requests.append({
-                                                        'url': request.url,
-                                                        'method': request.method,
-                                                        'post_data': request.post_data
-                                                    })
-
-                                            page.on('request', capture_request)
-                                            self.logger.info("Started capturing network requests...")
-
-                                            # Try multiple approaches to click/submit
-                                            click_success = False
-
-                                            # APPROACH 1: Direct HTTP POST (bypass UI completely)
-                                            try:
-                                                self.logger.info("Approach 1: Direct HTTP POST request...")
-
-                                                # Extract form data and action URL
-                                                js_extract_form = """
-                                                () => {
-                                                    const forms = document.querySelectorAll('form');
-                                                    for (let form of forms) {
-                                                        const submitBtn = form.querySelector('button[type="submit"]');
-                                                        if (submitBtn && submitBtn.textContent.includes('Potvrdi')) {
-                                                            const formData = {};
-                                                            const inputs = form.querySelectorAll('input, select, textarea');
-                                                            inputs.forEach(input => {
-                                                                if (input.name) {
-                                                                    formData[input.name] = input.value || '';
-                                                                }
-                                                            });
-                                                            return {
-                                                                action: form.action || window.location.href,
-                                                                method: form.method || 'POST',
-                                                                data: formData
-                                                            };
-                                                        }
-                                                    }
-                                                    return null;
-                                                }
-                                                """
-                                                form_info = await page.evaluate(js_extract_form)
-
-                                                if form_info:
-                                                    self.logger.info(f"Form action: {form_info['action']}")
-                                                    self.logger.info(f"Form method: {form_info['method']}")
-                                                    self.logger.info(f"Form data keys: {list(form_info['data'].keys())}")
-
-                                                    # Send POST request using Playwright's request context
-                                                    response = await page.request.post(
-                                                        form_info['action'],
-                                                        data=form_info['data'],
-                                                        headers={
-                                                            'Content-Type': 'application/x-www-form-urlencoded',
-                                                            'Referer': page.url
-                                                        }
-                                                    )
-
-                                                    self.logger.info(f"POST response status: {response.status}")
-
-                                                    if response.ok:
-                                                        self.logger.info("✅ HTTP POST successful!")
-                                                        # Reload page to see result
-                                                        await page.reload()
-                                                        await asyncio.sleep(2)
-                                                        click_success = True
-                                                    else:
-                                                        self.logger.warning(f"POST failed with status {response.status}")
-                                                else:
-                                                    self.logger.info("Could not extract form info for POST")
-
-                                            except Exception as e:
-                                                self.logger.warning(f"HTTP POST approach failed: {e}")
-
-                                            # APPROACH 2: JavaScript click on button
-                                            if not click_success:
-                                                try:
-                                                    self.logger.info("Approach 2: JavaScript click on button...")
-                                                    safe_selector = selector.replace("'", "\\'")
-                                                    js_click = """
-                                                    (sel) => {
-                                                        const btn = document.querySelector(sel);
-                                                        if (btn) {
-                                                            btn.click();
-                                                            return true;
-                                                        }
-                                                        return false;
-                                                    }
-                                                    """
-                                                    result = await page.evaluate(js_click, safe_selector)
-                                                    if result:
-                                                        self.logger.info("✅ Clicked via JavaScript")
-                                                        click_success = True
-                                                except Exception as e:
-                                                    self.logger.warning(f"JS click failed: {e}")
-
-                                            # APPROACH 3: Dispatch mouse events (most realistic)
-                                            if not click_success:
-                                                try:
-                                                    self.logger.info("Approach 3: Dispatching mouse events...")
-                                                    safe_selector = selector.replace("'", "\\'")
-                                                    js_events = """
-                                                    (sel) => {
-                                                        const btn = document.querySelector(sel);
-                                                        if (btn) {
-                                                            btn.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
-                                                            btn.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
-                                                            btn.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                                                            return true;
-                                                        }
-                                                        return false;
-                                                    }
-                                                    """
-                                                    event_result = await page.evaluate(js_events, safe_selector)
-                                                    if event_result:
-                                                        self.logger.info("✅ Mouse events dispatched")
-                                                        click_success = True
-                                                except Exception as e:
-                                                    self.logger.warning(f"Mouse event dispatch failed: {e}")
-
-                                            # APPROACH 4: Playwright click with force (last resort)
-                                            if not click_success:
-                                                try:
-                                                    self.logger.info("Approach 4: Playwright force click...")
-                                                    await page.click(selector, timeout=5000, force=True)
-                                                    self.logger.info("✅ Clicked via Playwright")
-                                                    click_success = True
-                                                except Exception as e:
-                                                    self.logger.error(f"All 4 click approaches failed: {e}")
-
-                                            final_button_found = True
-
-                                            # Stop capturing and log what we found
-                                            try:
-                                                page.remove_listener('request', capture_request)
-                                            except:
-                                                pass
-
-                                            # Log captured requests
-                                            if captured_requests:
-                                                self.logger.info(f"🔍 Captured {len(captured_requests)} POST/PUT/PATCH requests:")
-                                                for req in captured_requests:
-                                                    self.logger.info(f"  → {req['method']} {req['url']}")
-                                                    if req['post_data']:
-                                                        self.logger.info(f"    Data: {req['post_data'][:200]}")  # First 200 chars
-                                            else:
-                                                self.logger.warning("⚠️ NO POST requests captured - form might use different submission method!")
-
-                                            # Wait for popup/modal to appear (user said it's on same page!)
-                                            self.logger.info("Waiting for order bump popup/modal to appear...")
-
-                                            # Wait for modal/popup with specific text
-                                            popup_appeared = False
-                                            for wait_attempt in range(10):  # Try for 10 seconds
-                                                try:
-                                                    # Check if popup with "Ne, hvala (nastavi)" appeared
-                                                    js_check_popup = """
-                                                    () => {
-                                                        const body = document.body.textContent || '';
-                                                        return body.includes('Ne, hvala') || body.includes('nastavi') || body.includes('Čestitamo');
-                                                    }
-                                                    """
-                                                    has_popup = await page.evaluate(js_check_popup)
-
-                                                    if has_popup:
-                                                        self.logger.info(f"✅ Order bump popup appeared after {wait_attempt + 1} seconds!")
-                                                        popup_appeared = True
-                                                        break
-
-                                                    await asyncio.sleep(1)
-                                                except:
-                                                    await asyncio.sleep(1)
-
-                                            if not popup_appeared:
-                                                self.logger.warning("⚠️ Order bump popup did NOT appear after clicking!")
-                                                # Check if we're still on checkout page
-                                                still_has_button = await page.locator(selector).count() > 0
-                                                if still_has_button:
-                                                    self.logger.error("❌ Button is STILL there - click FAILED completely!")
-                                                else:
-                                                    self.logger.info("Button disappeared but no popup - might have progressed")
-
-                                            break
-                                except Exception as e:
-                                    if "timeout" not in str(e).lower():
-                                        self.logger.debug(f"Could not check selector {selector}: {e}")
-                                    continue
-
-                            if not final_button_found:
-                                self.logger.info("No final 'Potvrdi porudžbinu' button found (might already be past checkout)")
-
-                        except Exception as e:
-                            self.logger.info(f"Final confirmation check error: {e}")
-
-                        # Handle order bump / upsell popups (especially for limitlesss.rs)
-                        try:
-                            self.logger.info("Looking for order bump/upsell offers...")
-
-                            # Give MORE time for the popup to appear (5 seconds instead of random 1-3)
-                            self.logger.info("Waiting 5 seconds for order bump popup to load...")
-                            await asyncio.sleep(5)
-
-                            # Scroll to bottom of page to ensure popup is loaded and visible
-                            try:
-                                await page.evaluate('window.scrollTo(0, document.body.scrollHeight)')
-                                self.logger.info("Scrolled to bottom of page")
-                                await asyncio.sleep(1)
-                                # Scroll back to middle
-                                await page.evaluate('window.scrollTo(0, document.body.scrollHeight / 2)')
-                                self.logger.info("Scrolled to middle of page")
-                                await asyncio.sleep(1)
-                            except:
-                                pass
-
-                            # Take screenshot to see what's on the page
-                            try:
-                                await page.screenshot(
-                                    path=f'logs/order_bump_check_{datetime.now().strftime("%Y%m%d_%H%M%S")}.png',
-                                    full_page=True
-                                )
-                                self.logger.info("Full page screenshot taken for order bump investigation")
-                            except:
-                                pass
-
-                            # Log all buttons on the page for debugging
-                            try:
-                                all_buttons = await page.locator('button, a[role="button"], input[type="submit"], input[type="button"]').all()
-                                self.logger.info(f"Total buttons found on page: {len(all_buttons)}")
-                                for i, btn in enumerate(all_buttons[:20]):  # Log first 20 buttons
-                                    try:
-                                        text = await btn.inner_text()
-                                        self.logger.info(f"Button {i+1}: '{text.strip()}'")
-                                    except:
-                                        pass
                             except Exception as e:
-                                self.logger.warning(f"Could not enumerate buttons: {e}")
+                                self.logger.error(f"form.submit() failed: {e}")
 
-                            # Look for order bump reject/decline buttons with more variations
-                            order_bump_reject_selectors = [
-                                # Exact text matches (case-insensitive)
-                                'button:has-text("Ne, hvala (nastavi)")',
-                                'a:has-text("Ne, hvala (nastavi)")',
-                                'button:has-text("Ne, hvala")',
-                                'a:has-text("Ne, hvala")',
+                        # If we still haven't navigated away, log failure
+                        final_check_url = page.url
+                        if final_check_url == self.target_url or final_check_url.rstrip('/') == self.target_url.rstrip('/'):
+                            self.logger.error("=" * 80)
+                            self.logger.error("❌ SUBMISSION FAILED - URL did not change")
+                            self.logger.error(f"Still at: {final_check_url}")
+                            self.logger.error("=" * 80)
 
-                                # Partial matches
-                                'button:has-text("nastavi")',
-                                'a:has-text("nastavi")',
-                                'button:has-text("hvala")',
-                                'a:has-text("hvala")',
-
-                                # Common variations
-                                'button:has-text("Ne hvala")',
-                                'button:has-text("Odbij")',
-                                'button:has-text("Decline")',
-                                'button:has-text("No thanks")',
-                                'button:has-text("Skip")',
-                                'button:has-text("Preskoči")',
-                                'button:has-text("Zatvori")',
-                                'button:has-text("Close")',
-
-                                # Links
-                                'a:has-text("Ne hvala")',
-                                'a:has-text("Odbij")',
-
-                                # By class/id
-                                '[class*="decline"]',
-                                '[class*="reject"]',
-                                '[class*="skip"]',
-                                '[class*="no-thanks"]',
-                                '[id*="decline"]',
-                                '[id*="reject"]',
-
-                                # Generic "close" or "continue" selectors
-                                'button.close',
-                                'button.skip',
-                                'a.close',
-                                'a.skip',
-
-                                # By text content (any element)
-                                '*:has-text("Ne, hvala (nastavi)")',
-                                '*:has-text("nastavi")'
-                            ]
-
-                            order_bump_found = False
-                            for selector in order_bump_reject_selectors:
-                                try:
-                                    # Check if order bump button exists
-                                    count = await page.locator(selector).count()
-                                    if count > 0:
-                                        self.logger.info(f"🎯 FOUND order bump button! Selector: {selector}, Count: {count}")
-
-                                        # Try to scroll element into view first
-                                        try:
-                                            element = page.locator(selector).first
-                                            await element.scroll_into_view_if_needed(timeout=2000)
-                                            self.logger.info("Scrolled element into view")
-                                        except:
-                                            pass
-
-                                        # Try to click
-                                        await page.click(selector, timeout=3000, force=True)
-                                        self.logger.info(f"✅ Clicked order bump REJECT button: {selector}")
-                                        order_bump_found = True
-                                        await self.random_delay()
-
-                                        # Wait for any final navigation
-                                        try:
-                                            await page.wait_for_load_state('networkidle', timeout=5000)
-                                            self.logger.info("Page loaded after order bump decline")
-                                        except:
-                                            pass
-
-                                        break
-                                except Exception as e:
-                                    # Log errors for debugging
-                                    if "timeout" not in str(e).lower():
-                                        self.logger.debug(f"Could not click {selector}: {e}")
-                                    continue
-
-                            if not order_bump_found:
-                                self.logger.warning("⚠️ NO order bump button found! Checking page...")
-                                # Log current URL to help debug
-                                current_url = page.url
-                                self.logger.info(f"Current URL: {current_url}")
-
-                                # Try to get page title
-                                try:
-                                    title = await page.title()
-                                    self.logger.info(f"Page title: {title}")
-                                except:
-                                    pass
-
-                                # Get page HTML for debugging
-                                try:
-                                    html_content = await page.content()
-                                    # Log if we find any text containing "nastavi" or "hvala"
-                                    if "nastavi" in html_content.lower() or "hvala" in html_content.lower():
-                                        self.logger.info("⚠️ Found 'nastavi' or 'hvala' in page HTML but couldn't match selector!")
-                                        # Save HTML for inspection
-                                        with open(f'logs/order_bump_html_{datetime.now().strftime("%Y%m%d_%H%M%S")}.html', 'w', encoding='utf-8') as f:
-                                            f.write(html_content)
-                                        self.logger.info("Saved page HTML to logs/ for inspection")
-                                except Exception as e:
-                                    self.logger.warning(f"Could not check page HTML: {e}")
-
-                        except Exception as e:
-                            self.logger.info(f"Order bump handling error (likely no order bump present): {e}")
-
+                        # Break out of submit button loop since we've attempted submission
+                        break
                     # Take screenshot after submission
                     try:
                         await page.screenshot(
