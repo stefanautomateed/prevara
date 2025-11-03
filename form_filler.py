@@ -276,6 +276,60 @@ class FormFiller:
                         except Exception as e:
                             self.logger.info(f"No confirmation dialog found or handled: {e}")
 
+                        # CRITICAL: Select product package BEFORE clicking "Potvrdi porudžbinu"
+                        # This is required for limitlesss.rs checkout flow
+                        try:
+                            self.logger.info("Looking for product package selection buttons...")
+                            await asyncio.sleep(2)  # Wait for page to stabilize
+
+                            # Common package selection button patterns
+                            package_selectors = [
+                                'button:has-text("Optimalna")',  # "Optimalna ušteda" package
+                                'button:has-text("ušteda")',
+                                'button:has-text("Start")',      # "Start paket"
+                                'button:has-text("paket")',
+                                'button:has-text("All-in")',     # "All-in paket"
+                                '[class*="package"]:has-text("paket")',
+                                '[class*="product"]:has-text("paket")',
+                                'button[type="button"]:has-text("paket")',
+                            ]
+
+                            package_found = False
+                            for selector in package_selectors:
+                                try:
+                                    count = await page.locator(selector).count()
+                                    if count > 0:
+                                        # Get button text to verify it's a package button
+                                        btn_text = await page.locator(selector).first.inner_text()
+                                        self.logger.info(f"🎯 Found package button: '{btn_text.strip()}'")
+
+                                        # Scroll into view
+                                        await page.locator(selector).first.scroll_into_view_if_needed(timeout=2000)
+                                        await asyncio.sleep(0.5)
+
+                                        # Click the package button
+                                        await page.click(selector, timeout=5000)
+                                        self.logger.info(f"✅ Clicked package button: '{btn_text.strip()}'")
+                                        package_found = True
+
+                                        # Wait for page to update after package selection
+                                        await asyncio.sleep(2)
+                                        self.logger.info("Waiting for page to update after package selection...")
+
+                                        break
+                                except Exception as e:
+                                    if "timeout" not in str(e).lower():
+                                        self.logger.debug(f"Could not check package selector {selector}: {e}")
+                                    continue
+
+                            if package_found:
+                                self.logger.info("✅ Package selected - proceeding to checkout confirmation")
+                            else:
+                                self.logger.warning("⚠️ No package selection button found (might not be needed for this site)")
+
+                        except Exception as e:
+                            self.logger.info(f"Package selection error (might not be needed): {e}")
+
                         # NEW: Click final "Potvrdi porudžbinu" button (for limitlesss.rs checkout)
                         try:
                             self.logger.info("Looking for final order confirmation button...")
