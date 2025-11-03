@@ -13,7 +13,7 @@ import logging
 from pathlib import Path
 
 from form_filler import run_single_form_fill
-from scheduler import job, get_config
+from scheduler import job, get_config, setup_scheduler, get_current_schedule_times
 import schedule
 
 # Load environment variables
@@ -55,14 +55,8 @@ def run_scheduler_thread():
     """Run the scheduler in a background thread."""
     config = get_config()
 
-    # Clear any existing schedules
-    schedule.clear()
-
-    # Setup schedules
-    for time_str in config['schedule_times']:
-        time_str = time_str.strip()
-        schedule.every().day.at(time_str).do(job)
-        logger.info(f"Scheduled job at {time_str}")
+    # Delegate to central scheduler setup (handles random/fixed modes)
+    setup_scheduler()
 
     automation_status['scheduler_active'] = True
 
@@ -95,8 +89,13 @@ def get_status():
         'status': automation_status,
         'config': {
             'target_urls': config['target_urls'],
-            'schedule_times': config['schedule_times'],
-            'headless': config['headless']
+            'schedule_times': get_current_schedule_times(),
+            'headless': config['headless'],
+            'random_schedule': config.get('random_schedule', False),
+            'runs_per_day': config.get('runs_per_day', None),
+            'time_window_start': config.get('time_window_start', None),
+            'time_window_end': config.get('time_window_end', None),
+            'min_gap_minutes': config.get('min_gap_minutes', None)
         },
         'recent_logs': recent_logs
     })
