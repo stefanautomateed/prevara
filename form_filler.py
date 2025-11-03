@@ -299,21 +299,53 @@ class FormFiller:
                                         if "porudžbinu" in btn_text.lower() or "rsd" in btn_text.lower():
                                             self.logger.info(f"🎯 Found final confirmation button: '{btn_text.strip()}'")
 
+                                            # Get current URL before clicking
+                                            url_before = page.url
+                                            self.logger.info(f"URL before click: {url_before}")
+
                                             # Scroll into view
                                             await page.locator(selector).first.scroll_into_view_if_needed(timeout=2000)
+                                            await asyncio.sleep(1)
 
-                                            # Click it
-                                            await page.click(selector, timeout=3000, force=True)
-                                            self.logger.info(f"✅ Clicked final order confirmation button!")
+                                            # Try JavaScript click first (triggers all JS events)
+                                            try:
+                                                await page.evaluate(f'''
+                                                    const btn = document.querySelector('{selector.replace("'", "\\'")}');
+                                                    if (btn) {{
+                                                        btn.click();
+                                                        return true;
+                                                    }}
+                                                    return false;
+                                                ''')
+                                                self.logger.info("✅ Clicked final order button via JavaScript")
+                                            except Exception as e:
+                                                # Fallback to regular click
+                                                self.logger.info(f"JS click failed, trying regular click: {e}")
+                                                await page.click(selector, timeout=5000, force=True)
+                                                self.logger.info("✅ Clicked final order button via Playwright")
+
                                             final_button_found = True
 
-                                            # Wait for page to process
-                                            await asyncio.sleep(3)
+                                            # Wait for navigation or popup to appear (important!)
+                                            self.logger.info("Waiting for page navigation/update...")
                                             try:
-                                                await page.wait_for_load_state('networkidle', timeout=10000)
-                                                self.logger.info("Page loaded after final confirmation")
-                                            except:
-                                                pass
+                                                # Wait for URL change OR popup to appear
+                                                await asyncio.sleep(2)
+                                                await page.wait_for_load_state('networkidle', timeout=15000)
+
+                                                url_after = page.url
+                                                self.logger.info(f"URL after click: {url_after}")
+
+                                                if url_after != url_before:
+                                                    self.logger.info(f"✅ Page navigated from {url_before} to {url_after}")
+                                                else:
+                                                    self.logger.warning(f"⚠️ URL did not change - still on {url_after}")
+
+                                            except Exception as e:
+                                                self.logger.warning(f"Navigation wait error: {e}")
+
+                                            # Additional wait for any JavaScript to execute
+                                            await asyncio.sleep(3)
 
                                             break
                                 except Exception as e:
