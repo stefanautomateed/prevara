@@ -374,20 +374,28 @@
             <div class="card">
                 <h2>📈 Statistika Za Crne Dane</h2>
                 <div class="stat">
-                    <span class="stat-label">Ukupno Izvršeno</span>
+                    <span class="stat-label">Ukupno Submisija</span>
                     <span id="total-runs" class="stat-value">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Uspešno Pokrenuto 💪</span>
+                    <span class="stat-label">Uspešne Submisije 💪</span>
                     <span id="successful-runs" class="stat-value" style="color: #10b981;">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Neuspelo 😅</span>
+                    <span class="stat-label">Neuspele Submisije 😅</span>
                     <span id="failed-runs" class="stat-value" style="color: #ef4444;">0</span>
                 </div>
                 <div class="stat">
                     <span class="stat-label">Efikasnost Plana</span>
                     <span id="success-rate" class="stat-value">0%</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Manualnih Pokretanja</span>
+                    <span id="manual-triggers" class="stat-value">0</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-label">Scheduler Pokretanja</span>
+                    <span id="scheduler-triggers" class="stat-value">0</span>
                 </div>
             </div>
 
@@ -518,15 +526,28 @@
                     document.getElementById('stop-scheduler-btn').disabled = true;
                 }
 
-                // Update statistics
-                document.getElementById('total-runs').textContent = status.total_runs;
-                document.getElementById('successful-runs').textContent = status.successful_runs;
-                document.getElementById('failed-runs').textContent = status.failed_runs;
+                // Update statistics (prefer persistent stats when available)
+                const stats = data.stats || {};
+                const totalSubmissions = (stats.total_submissions_attempted !== undefined) ? stats.total_submissions_attempted : status.total_runs;
+                const totalSuccess = (stats.total_successful_submissions !== undefined) ? stats.total_successful_submissions : status.successful_runs;
+                const totalFailed = (stats.total_failed_submissions !== undefined) ? stats.total_failed_submissions : status.failed_runs;
 
-                const successRate = status.total_runs > 0
-                    ? Math.round((status.successful_runs / status.total_runs) * 100)
+                document.getElementById('total-runs').textContent = totalSubmissions;
+                document.getElementById('successful-runs').textContent = totalSuccess;
+                document.getElementById('failed-runs').textContent = totalFailed;
+
+                const successRate = totalSubmissions > 0
+                    ? Math.round((totalSuccess / totalSubmissions) * 100)
                     : 0;
                 document.getElementById('success-rate').textContent = successRate + '%';
+
+                // Triggers breakdown
+                const manualTriggers = stats.manual_triggers || 0;
+                const schedulerTriggers = stats.scheduler_triggers || 0;
+                const manualEl = document.getElementById('manual-triggers');
+                const schedEl = document.getElementById('scheduler-triggers');
+                if (manualEl) manualEl.textContent = manualTriggers;
+                if (schedEl) schedEl.textContent = schedulerTriggers;
 
                 // Update configuration
                 const config = data.config;

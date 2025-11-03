@@ -12,6 +12,12 @@ import time
 from datetime import datetime
 from dotenv import load_dotenv
 from form_filler import run_single_form_fill
+from stats import (
+    increment_scheduler_trigger,
+    increment_submission_attempts,
+    increment_successes,
+    increment_failures
+)
 
 
 # Load environment variables
@@ -104,6 +110,12 @@ def job():
     logger.info(f"Starting scheduled form fill at {datetime.now()}")
     logger.info("=" * 60)
 
+    # Count this scheduler trigger once per job execution
+    try:
+        increment_scheduler_trigger()
+    except Exception as e:
+        logger.warning(f"Could not persist scheduler trigger stat: {e}")
+
     config = get_config()
 
     # Run form fills for all target URLs
@@ -119,13 +131,31 @@ def job():
                 max_delay=config['max_delay']
             ))
 
+            try:
+                increment_submission_attempts(1)
+            except Exception:
+                pass
+
             if result:
                 logger.info(f"Form fill for {target_url} completed successfully!")
+                try:
+                    increment_successes(1)
+                except Exception:
+                    pass
             else:
                 logger.error(f"Form fill for {target_url} failed!")
+                try:
+                    increment_failures(1)
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.error(f"Error processing {target_url}: {e}")
+            try:
+                increment_submission_attempts(1)
+                increment_failures(1)
+            except Exception:
+                pass
 
     logger.info("=" * 60)
 

@@ -14,6 +14,13 @@ from pathlib import Path
 
 from form_filler import run_single_form_fill
 from scheduler import job, get_config, setup_scheduler, get_current_schedule_times
+from stats import (
+    load_stats,
+    increment_manual_trigger,
+    increment_submission_attempts,
+    increment_successes,
+    increment_failures
+)
 import schedule
 
 # Load environment variables
@@ -85,7 +92,7 @@ def get_status():
             lines = f.readlines()
             recent_logs = lines[-50:]  # Last 50 lines
 
-    return jsonify({
+    payload = {
         'status': automation_status,
         'config': {
             'target_urls': config['target_urls'],
@@ -97,8 +104,10 @@ def get_status():
             'time_window_end': config.get('time_window_end', None),
             'min_gap_minutes': config.get('min_gap_minutes', None)
         },
-        'recent_logs': recent_logs
-    })
+        'recent_logs': recent_logs,
+        'stats': load_stats()
+    }
+    return jsonify(payload)
 
 
 @app.route('/api/run', methods=['POST'])
@@ -123,6 +132,12 @@ def trigger_run():
 
         config = get_config()
 
+        # Count manual trigger once
+        try:
+            increment_manual_trigger()
+        except Exception as e:
+            logger.warning(f"Could not persist manual trigger stat: {e}")
+
         # Run the form filler for all URLs
         all_success = True
         results = []
@@ -140,20 +155,37 @@ def trigger_run():
                 ))
 
                 automation_status['total_runs'] += 1
+                try:
+                    increment_submission_attempts(1)
+                except Exception:
+                    pass
 
                 if result:
                     automation_status['successful_runs'] += 1
+                    try:
+                        increment_successes(1)
+                    except Exception:
+                        pass
                     results.append(f"✅ {target_url}")
                     logger.info(f"Manual trigger: {target_url} completed successfully")
                 else:
                     automation_status['failed_runs'] += 1
                     all_success = False
+                    try:
+                        increment_failures(1)
+                    except Exception:
+                        pass
                     results.append(f"❌ {target_url}")
                     logger.error(f"Manual trigger: {target_url} failed")
 
             except Exception as e:
                 automation_status['failed_runs'] += 1
                 automation_status['total_runs'] += 1
+                try:
+                    increment_submission_attempts(1)
+                    increment_failures(1)
+                except Exception:
+                    pass
                 all_success = False
                 results.append(f"❌ {target_url} (error)")
                 logger.error(f"Manual trigger error for {target_url}: {e}")
