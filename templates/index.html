@@ -395,6 +395,17 @@
             <div class="card">
                 <h2>🎮 Kontrole</h2>
                 <div class="controls">
+                    <!-- Fixed Email Option -->
+                    <div style="background: #f9fafb; padding: 15px; border-radius: 8px; border: 2px solid #e5e7eb; margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; cursor: pointer; font-weight: 600; color: #374151;">
+                            <input type="checkbox" id="use-fixed-email" style="width: 20px; height: 20px; margin-right: 10px; cursor: pointer;">
+                            <span style="font-size: 0.95rem;">📧 Koristi Fiksni Email: <span style="color: #ff0844;">streamentor@gmail.com</span></span>
+                        </label>
+                        <div style="margin-top: 8px; font-size: 0.85rem; color: #6b7280; margin-left: 30px;">
+                            Ostali podaci (ime, adresa, telefon) ostaju random
+                        </div>
+                    </div>
+
                     <button id="run-btn" class="btn btn-primary" onclick="triggerRun()">
                         ⚫ DUGME ZA CRNE DANE ⚫
                     </button>
@@ -578,9 +589,18 @@
             btn.disabled = true;
             btn.innerHTML = '⚫ IZVRŠAVANJE PLANA... ⚫';
 
+            // Get fixed email checkbox value
+            const useFixedEmail = document.getElementById('use-fixed-email').checked;
+
             try {
                 const response = await fetch('/api/run', {
-                    method: 'POST'
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        use_fixed_email: useFixedEmail
+                    })
                 });
 
                 const data = await response.json();

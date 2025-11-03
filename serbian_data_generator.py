@@ -133,9 +133,12 @@ class SerbianDataGenerator:
         return f"{username}@{domain}"
 
     @staticmethod
-    def generate_complete_profile():
+    def generate_complete_profile(fixed_email=None):
         """
         Generate a complete profile with all information.
+
+        Args:
+            fixed_email: Optional fixed email to use instead of random
 
         Returns:
             dict: Complete profile data
@@ -144,10 +147,13 @@ class SerbianDataGenerator:
         name = SerbianDataGenerator.generate_name(gender)
         address = SerbianDataGenerator.generate_address()
 
+        # Use fixed email if provided, otherwise generate random
+        email = fixed_email if fixed_email else SerbianDataGenerator.generate_email(name)
+
         return {
             'name': name,
             'phone': SerbianDataGenerator.generate_phone(),
-            'email': SerbianDataGenerator.generate_email(name),
+            'email': email,
             'address': address['full_address'],
             'street': address['street'],
             'city': address['city'],

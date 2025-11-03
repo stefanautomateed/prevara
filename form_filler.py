@@ -13,7 +13,7 @@ from serbian_data_generator import SerbianDataGenerator
 class FormFiller:
     """Automated form filler for noro.rs website."""
 
-    def __init__(self, target_url, headless=False, min_delay=1, max_delay=3):
+    def __init__(self, target_url, headless=False, min_delay=1, max_delay=3, use_fixed_email=False):
         """
         Initialize the form filler.
 
@@ -22,11 +22,13 @@ class FormFiller:
             headless: Run browser in headless mode
             min_delay: Minimum delay between actions (seconds)
             max_delay: Maximum delay between actions (seconds)
+            use_fixed_email: Use fixed email (streamentor@gmail.com) instead of random
         """
         self.target_url = target_url
         self.headless = headless
         self.min_delay = min_delay
         self.max_delay = max_delay
+        self.use_fixed_email = use_fixed_email
         self.logger = logging.getLogger(__name__)
 
     async def random_delay(self):
@@ -41,9 +43,12 @@ class FormFiller:
         Returns:
             bool: True if successful, False otherwise
         """
-        profile = SerbianDataGenerator.generate_complete_profile()
+        # Generate profile with fixed email if requested
+        fixed_email = "streamentor@gmail.com" if self.use_fixed_email else None
+        profile = SerbianDataGenerator.generate_complete_profile(fixed_email=fixed_email)
+
         self.logger.info(f"Generated profile: {profile['name']}, {profile['phone']}")
-        self.logger.info(f"  Email: {profile['email']}")
+        self.logger.info(f"  Email: {profile['email']}" + (" [FIXED]" if self.use_fixed_email else ""))
         self.logger.info(f"  Address: {profile['address']}")
         self.logger.info(f"  City: {profile['city']}, ZIP: {profile['postal_code']}")
 
@@ -505,7 +510,7 @@ class FormFiller:
                 return False
 
 
-async def run_single_form_fill(target_url, headless=False, min_delay=1, max_delay=3):
+async def run_single_form_fill(target_url, headless=False, min_delay=1, max_delay=3, use_fixed_email=False):
     """
     Run a single form fill operation.
 
@@ -514,11 +519,12 @@ async def run_single_form_fill(target_url, headless=False, min_delay=1, max_dela
         headless: Run browser in headless mode
         min_delay: Minimum delay between actions
         max_delay: Maximum delay between actions
+        use_fixed_email: Use fixed email (streamentor@gmail.com) instead of random
 
     Returns:
         bool: True if successful, False otherwise
     """
-    filler = FormFiller(target_url, headless, min_delay, max_delay)
+    filler = FormFiller(target_url, headless, min_delay, max_delay, use_fixed_email)
     return await filler.fill_form()
 
 
