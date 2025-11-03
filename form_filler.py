@@ -289,6 +289,33 @@ class FormFiller:
                                         # Wait for page to update after confirmation
                                         await asyncio.sleep(2)
 
+                                        # Check if there are quantity selectors or package options that need selection
+                                        try:
+                                            self.logger.info("Checking for quantity/package selectors...")
+
+                                            # Look for quantity dropdowns or buttons
+                                            quantity_selectors = [
+                                                'select[name*="quantity"]',
+                                                'select[name*="količina"]',
+                                                'input[name*="quantity"]',
+                                                'input[name*="količina"]',
+                                                '[class*="quantity"]',
+                                            ]
+
+                                            for qty_sel in quantity_selectors:
+                                                try:
+                                                    if await page.locator(qty_sel).count() > 0:
+                                                        self.logger.info(f"Found quantity selector: {qty_sel}")
+                                                        # Try to select a quantity if it's a select element
+                                                        if 'select' in qty_sel:
+                                                            await page.select_option(qty_sel, index=0)  # Select first option
+                                                            self.logger.info("Selected first quantity option")
+                                                        break
+                                                except:
+                                                    continue
+                                        except:
+                                            pass
+
                                         # After confirmation, look for final completion button (noro.rs)
                                         completion_selectors = [
                                             'button:has-text("Završi Naručivanje")',
@@ -302,15 +329,60 @@ class FormFiller:
                                                 if await page.locator(comp_sel).count() > 0:
                                                     btn_text = await page.locator(comp_sel).first.inner_text()
                                                     self.logger.info(f"🎯 Found order completion button: '{btn_text.strip()}'")
-                                                    await page.click(comp_sel, timeout=5000)
+
+                                                    # Check if button is disabled or has validation issues
+                                                    try:
+                                                        btn_disabled = await page.locator(comp_sel).first.is_disabled()
+                                                        self.logger.info(f"Button disabled status: {btn_disabled}")
+                                                    except:
+                                                        pass
+
+                                                    # Scroll into view
+                                                    await page.locator(comp_sel).first.scroll_into_view_if_needed()
+                                                    await asyncio.sleep(1)
+
+                                                    # Check for any visible error messages before clicking
+                                                    try:
+                                                        error_check = await page.evaluate("""
+                                                        () => {
+                                                            const errors = document.querySelectorAll('.error, .alert, [class*="error"], [class*="invalid"]');
+                                                            const errorTexts = Array.from(errors)
+                                                                .filter(el => el.offsetParent !== null)
+                                                                .map(el => el.textContent.trim())
+                                                                .filter(text => text.length > 0);
+                                                            return errorTexts;
+                                                        }
+                                                        """)
+                                                        if error_check:
+                                                            self.logger.warning(f"⚠️ Validation errors on page: {error_check}")
+                                                    except:
+                                                        pass
+
+                                                    # Try clicking with force=True
+                                                    self.logger.info("Attempting to click 'Završi Naručivanje' button...")
+                                                    await page.click(comp_sel, timeout=5000, force=True)
                                                     self.logger.info(f"✅ Clicked order completion button!")
 
-                                                    # Wait for navigation to thank-you page
-                                                    await asyncio.sleep(3)
+                                                    # Wait longer for navigation to thank-you page
+                                                    self.logger.info("Waiting for navigation to thank-you page...")
+                                                    await asyncio.sleep(5)
                                                     new_url = page.url
                                                     self.logger.info(f"📍 URL after completion button: {new_url}")
+
+                                                    # Check if button still exists (means click didn't work)
+                                                    still_exists = await page.locator(comp_sel).count() > 0
+                                                    if still_exists:
+                                                        self.logger.error(f"❌ BUTTON STILL EXISTS - Click failed!")
+                                                        # Log page content to see any error messages
+                                                        page_text = await page.evaluate("() => document.body.innerText")
+                                                        if "error" in page_text.lower() or "greška" in page_text.lower():
+                                                            self.logger.error(f"Found error text on page!")
+                                                    else:
+                                                        self.logger.info(f"✅ Button disappeared - order likely submitted!")
+
                                                     break
-                                            except:
+                                            except Exception as e:
+                                                self.logger.error(f"Error clicking completion button: {e}")
                                                 continue
 
                                         break
