@@ -334,6 +334,20 @@ class FormFiller:
                                             await page.locator(selector).first.scroll_into_view_if_needed(timeout=2000)
                                             await asyncio.sleep(1)
 
+                                            # CAPTURE network requests to see what gets sent
+                                            captured_requests = []
+
+                                            def capture_request(request):
+                                                if request.method in ['POST', 'PUT', 'PATCH']:
+                                                    captured_requests.append({
+                                                        'url': request.url,
+                                                        'method': request.method,
+                                                        'post_data': request.post_data
+                                                    })
+
+                                            page.on('request', capture_request)
+                                            self.logger.info("Started capturing network requests...")
+
                                             # Try multiple approaches to click/submit
                                             click_success = False
 
@@ -455,6 +469,22 @@ class FormFiller:
                                                     self.logger.error(f"All 4 click approaches failed: {e}")
 
                                             final_button_found = True
+
+                                            # Stop capturing and log what we found
+                                            try:
+                                                page.remove_listener('request', capture_request)
+                                            except:
+                                                pass
+
+                                            # Log captured requests
+                                            if captured_requests:
+                                                self.logger.info(f"🔍 Captured {len(captured_requests)} POST/PUT/PATCH requests:")
+                                                for req in captured_requests:
+                                                    self.logger.info(f"  → {req['method']} {req['url']}")
+                                                    if req['post_data']:
+                                                        self.logger.info(f"    Data: {req['post_data'][:200]}")  # First 200 chars
+                                            else:
+                                                self.logger.warning("⚠️ NO POST requests captured - form might use different submission method!")
 
                                             # Wait for popup/modal to appear (user said it's on same page!)
                                             self.logger.info("Waiting for order bump popup/modal to appear...")
