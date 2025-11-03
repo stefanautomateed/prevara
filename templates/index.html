@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Form Automation Dashboard</title>
+    <title>Prevara Kontrolna Tabla 🔥</title>
     <style>
         * {
             margin: 0;
@@ -13,9 +13,17 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);
             min-height: 100vh;
             padding: 20px;
+            animation: gradientShift 10s ease infinite;
+            background-size: 200% 200%;
+        }
+
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
         .container {
@@ -27,16 +35,27 @@
             text-align: center;
             color: white;
             margin-bottom: 30px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
         .header h1 {
-            font-size: 2.5rem;
+            font-size: 3rem;
             margin-bottom: 10px;
+            font-weight: 900;
+            letter-spacing: -1px;
         }
 
         .header p {
-            font-size: 1.1rem;
-            opacity: 0.9;
+            font-size: 1.3rem;
+            opacity: 0.95;
+            font-weight: 600;
+        }
+
+        .header .subtitle {
+            font-size: 0.9rem;
+            margin-top: 5px;
+            opacity: 0.8;
+            font-style: italic;
         }
 
         .dashboard {
@@ -47,16 +66,26 @@
         }
 
         .card {
-            background: white;
-            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
             padding: 25px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
         }
 
         .card h2 {
-            font-size: 1.3rem;
+            font-size: 1.4rem;
             margin-bottom: 15px;
-            color: #333;
+            color: #ff0844;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .stat {
@@ -142,23 +171,43 @@
         }
 
         .btn-primary {
-            background: #667eea;
+            background: linear-gradient(135deg, #ff0844 0%, #ff6b6b 100%);
             color: white;
+            font-weight: 700;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #d10038 0%, #ff5252 100%);
         }
 
         .btn-success {
-            background: #10b981;
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
             color: white;
+            font-weight: 700;
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
         }
 
         .btn-danger {
-            background: #ef4444;
+            background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
             color: white;
+            font-weight: 700;
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
         }
 
         .btn-secondary {
-            background: #6b7280;
+            background: linear-gradient(135deg, #6b7280 0%, #9ca3af 100%);
             color: white;
+            font-weight: 700;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #4b5563 0%, #6b7280 100%);
         }
 
         .controls {
@@ -274,8 +323,9 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🤖 Form Automation Dashboard</h1>
-            <p>Noro.rs Automated Form Submissions</p>
+            <h1>💀 PREVARA KONTROLNA TABLA 🔥</h1>
+            <p>Automatski Napad na Konkurenciju</p>
+            <div class="subtitle">Kad si First Time Player a igraš kao Professional 😎</div>
         </div>
 
         <div id="alert" class="alert"></div>
@@ -283,61 +333,61 @@
         <div class="dashboard">
             <!-- Status Card -->
             <div class="card">
-                <h2>📊 Status</h2>
+                <h2>🎯 Status Napada</h2>
                 <div class="stat">
-                    <span class="stat-label">Current Status</span>
-                    <span id="current-status" class="status-badge status-idle">Idle</span>
+                    <span class="stat-label">Trenutno Stanje</span>
+                    <span id="current-status" class="status-badge status-idle">Na Čekanju</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Last Run</span>
-                    <span id="last-run" class="stat-value">Never</span>
+                    <span class="stat-label">Poslednji Napad</span>
+                    <span id="last-run" class="stat-value">Još Nije Bilo</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Last Result</span>
+                    <span class="stat-label">Rezultat</span>
                     <span id="last-status" class="stat-value">-</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Scheduler</span>
-                    <span id="scheduler-status" class="status-badge status-idle">Stopped</span>
+                    <span class="stat-label">Automatika</span>
+                    <span id="scheduler-status" class="status-badge status-idle">Isključena</span>
                 </div>
             </div>
 
             <!-- Statistics Card -->
             <div class="card">
-                <h2>📈 Statistics</h2>
+                <h2>📈 Statistika Prevare</h2>
                 <div class="stat">
-                    <span class="stat-label">Total Runs</span>
+                    <span class="stat-label">Ukupno Napada</span>
                     <span id="total-runs" class="stat-value">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Successful</span>
+                    <span class="stat-label">Uspešno Userani 💪</span>
                     <span id="successful-runs" class="stat-value" style="color: #10b981;">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Failed</span>
+                    <span class="stat-label">Promašaji 😅</span>
                     <span id="failed-runs" class="stat-value" style="color: #ef4444;">0</span>
                 </div>
                 <div class="stat">
-                    <span class="stat-label">Success Rate</span>
+                    <span class="stat-label">Procenat Uspeha</span>
                     <span id="success-rate" class="stat-value">0%</span>
                 </div>
             </div>
 
             <!-- Controls Card -->
             <div class="card">
-                <h2>🎮 Controls</h2>
+                <h2>🎮 Kontrole</h2>
                 <div class="controls">
                     <button id="run-btn" class="btn btn-primary" onclick="triggerRun()">
-                        ▶️ Run Now
+                        💣 POKRENI NAPAD ODMAH!
                     </button>
                     <button id="start-scheduler-btn" class="btn btn-success" onclick="startScheduler()">
-                        ⏰ Start Scheduler
+                        ⏰ Uključi Auto-Režim
                     </button>
                     <button id="stop-scheduler-btn" class="btn btn-danger" onclick="stopScheduler()" disabled>
-                        ⏸️ Stop Scheduler
+                        ⏸️ Zaustavi Auto-Režim
                     </button>
                     <button class="btn btn-secondary" onclick="refreshStatus()">
-                        🔄 Refresh Status
+                        🔄 Osvježi Status
                     </button>
                 </div>
             </div>
@@ -345,10 +395,10 @@
 
         <!-- Configuration Card -->
         <div class="card" style="margin-bottom: 30px;">
-            <h2>⚙️ Configuration</h2>
+            <h2>⚙️ Meta Podešavanja</h2>
             <ul class="config-list" id="config-list">
                 <li>
-                    <span class="config-label">Loading...</span>
+                    <span class="config-label">Učitavanje...</span>
                     <span class="config-value"></span>
                 </li>
             </ul>
@@ -357,13 +407,13 @@
         <!-- Logs Section -->
         <div class="logs-section">
             <div class="logs-header">
-                <h2>📋 Recent Logs</h2>
+                <h2>📋 Log Napada (Šta se dešava)</h2>
                 <button class="btn btn-secondary" onclick="refreshLogs()" style="width: auto; padding: 8px 16px; margin: 0;">
-                    🔄 Refresh
+                    🔄 Osvježi
                 </button>
             </div>
             <div class="logs-container" id="logs">
-                <div class="log-line">Loading logs...</div>
+                <div class="log-line">Učitavanje logova...</div>
             </div>
         </div>
     </div>
@@ -394,29 +444,32 @@
                 const currentStatus = document.getElementById('current-status');
 
                 if (status.running) {
-                    currentStatus.textContent = 'Running';
+                    currentStatus.textContent = 'U TOKU NAPAD! 💥';
                     currentStatus.className = 'status-badge status-running';
                 } else {
-                    currentStatus.textContent = 'Idle';
+                    currentStatus.textContent = 'Čeka Komandu';
                     currentStatus.className = 'status-badge status-idle';
                 }
 
                 // Update last run
                 if (status.last_run) {
                     const date = new Date(status.last_run);
-                    document.getElementById('last-run').textContent = date.toLocaleString();
+                    document.getElementById('last-run').textContent = date.toLocaleString('sr-RS');
                 } else {
-                    document.getElementById('last-run').textContent = 'Never';
+                    document.getElementById('last-run').textContent = 'Još Nije Bilo';
                 }
 
                 // Update last status
                 const lastStatusEl = document.getElementById('last-status');
                 if (status.last_status === 'success') {
-                    lastStatusEl.textContent = '✅ Success';
+                    lastStatusEl.textContent = '✅ USERANI USPEŠNO! 🔥';
                     lastStatusEl.style.color = '#10b981';
                 } else if (status.last_status === 'failed' || status.last_status === 'error') {
-                    lastStatusEl.textContent = '❌ Failed';
+                    lastStatusEl.textContent = '❌ Nije Prošlo (Retry!)';
                     lastStatusEl.style.color = '#ef4444';
+                } else if (status.last_status === 'partial') {
+                    lastStatusEl.textContent = '⚠️ Delimično Uspešno';
+                    lastStatusEl.style.color = '#f59e0b';
                 } else {
                     lastStatusEl.textContent = '-';
                     lastStatusEl.style.color = '#333';
@@ -425,12 +478,12 @@
                 // Update scheduler status
                 const schedulerStatus = document.getElementById('scheduler-status');
                 if (status.scheduler_active) {
-                    schedulerStatus.textContent = 'Running';
+                    schedulerStatus.textContent = 'AKTIVNA - Auto Spam! 🚀';
                     schedulerStatus.className = 'status-badge status-success';
                     document.getElementById('start-scheduler-btn').disabled = true;
                     document.getElementById('stop-scheduler-btn').disabled = false;
                 } else {
-                    schedulerStatus.textContent = 'Stopped';
+                    schedulerStatus.textContent = 'Isključena';
                     schedulerStatus.className = 'status-badge status-idle';
                     document.getElementById('start-scheduler-btn').disabled = false;
                     document.getElementById('stop-scheduler-btn').disabled = true;
@@ -451,16 +504,16 @@
                 const configList = document.getElementById('config-list');
                 configList.innerHTML = `
                     <li>
-                        <span class="config-label">Target URLs</span>
-                        <span class="config-value">${config.target_urls ? config.target_urls.join(', ') : 'Not configured'}</span>
+                        <span class="config-label">Mete (Targets) 🎯</span>
+                        <span class="config-value">${config.target_urls ? config.target_urls.join(', ') : 'Nije Konfigurisano'}</span>
                     </li>
                     <li>
-                        <span class="config-label">Schedule Times</span>
+                        <span class="config-label">Vreme Napada ⏰</span>
                         <span class="config-value">${config.schedule_times.join(', ')}</span>
                     </li>
                     <li>
-                        <span class="config-label">Headless Mode</span>
-                        <span class="config-value">${config.headless ? 'Yes' : 'No'}</span>
+                        <span class="config-label">Stealth Mod 🥷</span>
+                        <span class="config-value">${config.headless ? 'DA (Nevidljiv)' : 'NE (Vidljiv)'}</span>
                     </li>
                 `;
 
@@ -493,7 +546,7 @@
                     // Auto-scroll to bottom
                     logsContainer.scrollTop = logsContainer.scrollHeight;
                 } else {
-                    logsContainer.innerHTML = '<div class="log-line">No logs available</div>';
+                    logsContainer.innerHTML = '<div class="log-line">Nema logova. Pokreni napad da vidiš akciju! 🎯</div>';
                 }
 
             } catch (error) {
@@ -505,7 +558,7 @@
         async function triggerRun() {
             const btn = document.getElementById('run-btn');
             btn.disabled = true;
-            btn.innerHTML = '⏳ Running...';
+            btn.innerHTML = '💣 NAPAD U TOKU... 💥';
 
             try {
                 const response = await fetch('/api/run', {
@@ -515,9 +568,9 @@
                 const data = await response.json();
 
                 if (response.ok) {
-                    showAlert(data.message, 'success');
+                    showAlert('🔥 ' + data.message, 'success');
                 } else {
-                    showAlert(data.message, 'error');
+                    showAlert('⚠️ ' + data.message, 'error');
                 }
 
                 await refreshStatus();
@@ -525,10 +578,10 @@
 
             } catch (error) {
                 console.error('Error triggering run:', error);
-                showAlert('Failed to trigger run', 'error');
+                showAlert('❌ Greška pri pokretanju napada!', 'error');
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '▶️ Run Now';
+                btn.innerHTML = '💣 POKRENI NAPAD ODMAH!';
             }
         }
 
