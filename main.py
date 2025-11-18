@@ -94,7 +94,8 @@ Examples:
                 headless=args.headless,
                 min_delay=1,
                 max_delay=3,
-                proxy=os.getenv('PROXY_URL', None)
+                proxy=os.getenv('PROXY_URL', None),
+                max_retries=int(os.getenv('MAX_RETRIES', '3'))
             ))
 
             if result:

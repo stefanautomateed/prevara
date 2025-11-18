@@ -60,7 +60,8 @@ def get_config():
         'time_window_end': os.getenv('TIME_WINDOW_END', '22:00'),
         'min_gap_minutes': int(os.getenv('MIN_GAP_MINUTES', '45')),
         'proxy': os.getenv('PROXY_URL', ''),
-        'schedule_jitter_minutes': int(os.getenv('SCHEDULE_JITTER_MINUTES', '10'))
+        'schedule_jitter_minutes': int(os.getenv('SCHEDULE_JITTER_MINUTES', '10')),
+        'max_retries': int(os.getenv('MAX_RETRIES', '3'))
     }
 
 
@@ -140,7 +141,8 @@ def job():
                 headless=config['headless'],
                 min_delay=min_delay,
                 max_delay=max_delay,
-                proxy=config['proxy'] if config['proxy'] else None
+                proxy=config['proxy'] if config['proxy'] else None,
+                max_retries=config['max_retries']
             ))
 
             try:

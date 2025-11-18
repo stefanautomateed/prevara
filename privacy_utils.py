@@ -165,15 +165,19 @@ class PrivacyUtils:
     @staticmethod
     def parse_proxy_string(proxy_str):
         """
-        Parse proxy string into Playwright-compatible format.
+        Parse proxy string(s) into Playwright-compatible format.
+        
+        Supports single proxy or multiple proxies separated by comma.
+        If multiple proxies provided, returns a random one.
         
         Supported formats:
         - http://proxy.com:8080
         - http://user:pass@proxy.com:8080
         - socks5://proxy.com:1080
+        - Multiple: http://proxy1.com:8080,http://proxy2.com:8080
         
         Args:
-            proxy_str: Proxy URL string
+            proxy_str: Proxy URL string or comma-separated list
         
         Returns:
             dict: Playwright proxy configuration or None
@@ -182,6 +186,16 @@ class PrivacyUtils:
             return None
         
         try:
+            # Check if multiple proxies provided
+            if ',' in proxy_str:
+                proxies = [p.strip() for p in proxy_str.split(',') if p.strip()]
+                if not proxies:
+                    return None
+                # Pick a random proxy from the list
+                selected_proxy = random.choice(proxies)
+                logger.info(f"Selected proxy from pool: {selected_proxy} (pool size: {len(proxies)})")
+                proxy_str = selected_proxy
+            
             # Basic parsing (could be enhanced)
             proxy_config = {'server': proxy_str}
             

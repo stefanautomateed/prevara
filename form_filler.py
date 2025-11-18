@@ -16,7 +16,7 @@ from privacy_utils import PrivacyUtils
 class FormFiller:
     """Automated form filler for noro.rs website."""
 
-    def __init__(self, target_url, headless=False, min_delay=1, max_delay=3, proxy=None):
+    def __init__(self, target_url, headless=False, min_delay=1, max_delay=3, proxy=None, max_retries=3):
         """
         Initialize the form filler.
 
@@ -25,13 +25,16 @@ class FormFiller:
             headless: Run browser in headless mode
             min_delay: Minimum delay between actions (seconds)
             max_delay: Maximum delay between actions (seconds)
-            proxy: Proxy server URL (e.g., 'http://proxy.com:8080' or 'socks5://user:pass@proxy.com:1080')
+            proxy: Proxy server URL (e.g., 'http://proxy.com:8080' or comma-separated list for rotation)
+            max_retries: Maximum number of retry attempts with different proxies
         """
         self.target_url = target_url
         self.headless = headless
         self.min_delay = min_delay
         self.max_delay = max_delay
+        self.proxy_string = proxy  # Store original proxy string for rotation
         self.proxy = PrivacyUtils.parse_proxy_string(proxy) if proxy else None
+        self.max_retries = max_retries
         self.logger = logging.getLogger(__name__)
 
     async def random_delay(self):
@@ -42,6 +45,37 @@ class FormFiller:
     async def fill_form(self):
         """
         Main method to fill out the form on the website.
+        Includes retry logic with proxy rotation on failure.
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        last_error = None
+        
+        for attempt in range(self.max_retries):
+            try:
+                # Rotate proxy on retry attempts
+                if attempt > 0 and self.proxy_string:
+                    self.logger.info(f"Retry attempt {attempt + 1}/{self.max_retries} - rotating proxy...")
+                    self.proxy = PrivacyUtils.parse_proxy_string(self.proxy_string)
+                
+                # Attempt to fill the form
+                result = await self._fill_form_attempt()
+                if result:
+                    return True
+                    
+            except Exception as e:
+                last_error = e
+                self.logger.warning(f"Attempt {attempt + 1} failed: {str(e)[:100]}")
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+        
+        self.logger.error(f"All {self.max_retries} attempts failed. Last error: {last_error}")
+        return False
+
+    async def _fill_form_attempt(self):
+        """
+        Single attempt to fill the form.
 
         Returns:
             bool: True if successful, False otherwise
@@ -969,25 +1003,26 @@ class FormFiller:
                 return submission_success
 
             except Exception as e:
-                self.logger.error(f"Error during form filling: {e}")
-                return False
+                self.logger.error(f"Error during form filling attempt: {e}")
+                raise  # Re-raise to trigger retry logic
 
 
-async def run_single_form_fill(target_url, headless=False, min_delay=1, max_delay=3, proxy=None):
+async def run_single_form_fill(target_url, headless=False, min_delay=1, max_delay=3, proxy=None, max_retries=3):
     """
-    Run a single form fill operation.
+    Run a single form fill operation with retry logic.
 
     Args:
         target_url: URL of the target website
         headless: Run browser in headless mode
         min_delay: Minimum delay between actions
         max_delay: Maximum delay between actions
-        proxy: Proxy server URL (optional)
+        proxy: Proxy server URL or comma-separated list for rotation (optional)
+        max_retries: Maximum number of retry attempts with proxy rotation
 
     Returns:
         bool: True if successful, False otherwise
     """
-    filler = FormFiller(target_url, headless, min_delay, max_delay, proxy)
+    filler = FormFiller(target_url, headless, min_delay, max_delay, proxy, max_retries)
     return await filler.fill_form()
 
 

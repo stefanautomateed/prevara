@@ -144,7 +144,8 @@ def trigger_run():
                     headless=config['headless'],
                     min_delay=config['min_delay'],
                     max_delay=config['max_delay'],
-                    proxy=config.get('proxy', None)
+                    proxy=config.get('proxy', None),
+                    max_retries=config.get('max_retries', 3)
                 ))
 
                 automation_status['total_runs'] += 1
