@@ -93,7 +93,8 @@ Examples:
                 target_url=args.url,
                 headless=args.headless,
                 min_delay=1,
-                max_delay=3
+                max_delay=3,
+                proxy=os.getenv('PROXY_URL', None)
             ))
 
             if result:

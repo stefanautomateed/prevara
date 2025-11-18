@@ -123,13 +123,6 @@ def trigger_run():
         automation_status['running'] = True
         logger.info("Manual trigger: Starting form submission for all URLs")
 
-        # Get use_fixed_email parameter from request
-        use_fixed_email = False
-        if request.is_json:
-            data = request.get_json()
-            use_fixed_email = data.get('use_fixed_email', False)
-            logger.info(f"Using fixed email: {use_fixed_email}")
-
         config = get_config()
 
         # Count manual trigger once
@@ -151,7 +144,7 @@ def trigger_run():
                     headless=config['headless'],
                     min_delay=config['min_delay'],
                     max_delay=config['max_delay'],
-                    use_fixed_email=use_fixed_email
+                    proxy=config.get('proxy', None)
                 ))
 
                 automation_status['total_runs'] += 1

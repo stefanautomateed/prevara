@@ -10,12 +10,13 @@ import re
 import os
 from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeout
 from serbian_data_generator import SerbianDataGenerator
+from privacy_utils import PrivacyUtils
 
 
 class FormFiller:
     """Automated form filler for noro.rs website."""
 
-    def __init__(self, target_url, headless=False, min_delay=1, max_delay=3, use_fixed_email=False):
+    def __init__(self, target_url, headless=False, min_delay=1, max_delay=3, proxy=None):
         """
         Initialize the form filler.
 
@@ -24,13 +25,13 @@ class FormFiller:
             headless: Run browser in headless mode
             min_delay: Minimum delay between actions (seconds)
             max_delay: Maximum delay between actions (seconds)
-            use_fixed_email: Use fixed email (streamentor@gmail.com) instead of random
+            proxy: Proxy server URL (e.g., 'http://proxy.com:8080' or 'socks5://user:pass@proxy.com:1080')
         """
         self.target_url = target_url
         self.headless = headless
         self.min_delay = min_delay
         self.max_delay = max_delay
-        self.use_fixed_email = use_fixed_email
+        self.proxy = PrivacyUtils.parse_proxy_string(proxy) if proxy else None
         self.logger = logging.getLogger(__name__)
 
     async def random_delay(self):
@@ -45,12 +46,11 @@ class FormFiller:
         Returns:
             bool: True if successful, False otherwise
         """
-        # Generate profile with fixed email if requested
-        fixed_email = "streamentor@gmail.com" if self.use_fixed_email else None
-        profile = SerbianDataGenerator.generate_complete_profile(fixed_email=fixed_email)
+        # Generate random profile (always use random email for privacy)
+        profile = SerbianDataGenerator.generate_complete_profile()
 
         self.logger.info(f"Generated profile: {profile['name']}, {profile['phone']}")
-        self.logger.info(f"  Email: {profile['email']}" + (" [FIXED]" if self.use_fixed_email else ""))
+        self.logger.info(f"  Email: {profile['email']}")
         self.logger.info(f"  Address: {profile['address']}")
         self.logger.info(f"  City: {profile['city']}, ZIP: {profile['postal_code']}")
 
@@ -58,6 +58,10 @@ class FormFiller:
             try:
                 # Ensure logs directory exists for traces/HAR/screenshots
                 os.makedirs('logs', exist_ok=True)
+                
+                # Clean up old files before starting (older than 24 hours)
+                PrivacyUtils.cleanup_old_files('logs', max_age_hours=24, file_extensions=['.har', '.png', '.zip'])
+                
                 # Launch browser
                 browser = await p.chromium.launch(
                     headless=self.headless,
@@ -68,15 +72,29 @@ class FormFiller:
                     ]
                 )
 
-                # Create context with realistic viewport and user agent
-                context = await browser.new_context(
-                    viewport={'width': 1920, 'height': 1080},
-                    user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    locale='sr-RS',
-                    timezone_id='Europe/Belgrade',
-                    record_har_path='logs/session.har',
-                    record_har_omit_content=False
-                )
+                # Get randomized privacy settings
+                user_agent = PrivacyUtils.get_random_user_agent()
+                viewport = PrivacyUtils.get_random_viewport()
+                locale, timezone = PrivacyUtils.get_locale_and_timezone()
+                
+                self.logger.info(f"Privacy settings: UA={user_agent[:50]}..., Viewport={viewport}, Proxy={'Yes' if self.proxy else 'No'}")
+                
+                # Create context with randomized settings
+                context_options = {
+                    'viewport': viewport,
+                    'user_agent': user_agent,
+                    'locale': locale,
+                    'timezone_id': timezone,
+                    'record_har_path': f'logs/session_{datetime.now().strftime("%Y%m%d_%H%M%S")}.har',
+                    'record_har_omit_content': False
+                }
+                
+                # Add proxy if configured
+                if self.proxy:
+                    context_options['proxy'] = self.proxy
+                    self.logger.info(f"Using proxy: {self.proxy['server']}")
+                
+                context = await browser.new_context(**context_options)
 
                 # Basic stealth tweaks
                 await context.add_init_script("""
@@ -955,7 +973,7 @@ class FormFiller:
                 return False
 
 
-async def run_single_form_fill(target_url, headless=False, min_delay=1, max_delay=3, use_fixed_email=False):
+async def run_single_form_fill(target_url, headless=False, min_delay=1, max_delay=3, proxy=None):
     """
     Run a single form fill operation.
 
@@ -964,12 +982,12 @@ async def run_single_form_fill(target_url, headless=False, min_delay=1, max_dela
         headless: Run browser in headless mode
         min_delay: Minimum delay between actions
         max_delay: Maximum delay between actions
-        use_fixed_email: Use fixed email (streamentor@gmail.com) instead of random
+        proxy: Proxy server URL (optional)
 
     Returns:
         bool: True if successful, False otherwise
     """
-    filler = FormFiller(target_url, headless, min_delay, max_delay, use_fixed_email)
+    filler = FormFiller(target_url, headless, min_delay, max_delay, proxy)
     return await filler.fill_form()
 
 

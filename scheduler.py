@@ -12,6 +12,7 @@ import time
 from datetime import datetime
 from dotenv import load_dotenv
 from form_filler import run_single_form_fill
+from privacy_utils import PrivacyUtils
 from stats import (
     increment_scheduler_trigger,
     increment_submission_attempts,
@@ -57,7 +58,9 @@ def get_config():
         'runs_per_day': int(os.getenv('RUNS_PER_DAY', '8')),
         'time_window_start': os.getenv('TIME_WINDOW_START', '09:00'),
         'time_window_end': os.getenv('TIME_WINDOW_END', '22:00'),
-        'min_gap_minutes': int(os.getenv('MIN_GAP_MINUTES', '45'))
+        'min_gap_minutes': int(os.getenv('MIN_GAP_MINUTES', '45')),
+        'proxy': os.getenv('PROXY_URL', ''),
+        'schedule_jitter_minutes': int(os.getenv('SCHEDULE_JITTER_MINUTES', '10'))
     }
 
 
@@ -122,13 +125,22 @@ def job():
     for target_url in config['target_urls']:
         try:
             logger.info(f"Processing {target_url}")
+            
+            # Get randomized delays for this run
+            min_delay, max_delay = PrivacyUtils.get_random_delays(
+                config['min_delay'], 
+                config['max_delay'], 
+                variance=0.5
+            )
+            logger.info(f"Using randomized delays: {min_delay}s - {max_delay}s")
 
-            # Run the async form filling
+            # Run the async form filling with proxy if configured
             result = asyncio.run(run_single_form_fill(
                 target_url=target_url,
                 headless=config['headless'],
-                min_delay=config['min_delay'],
-                max_delay=config['max_delay']
+                min_delay=min_delay,
+                max_delay=max_delay,
+                proxy=config['proxy'] if config['proxy'] else None
             ))
 
             try:
@@ -185,11 +197,14 @@ def setup_scheduler():
         logger.info(f"Random scheduling enabled. Runs per day: {config['runs_per_day']}")
         logger.info(f"Time window: {config['time_window_start']} - {config['time_window_end']}")
         logger.info(f"Minimum gap (minutes): {config['min_gap_minutes']}")
+        logger.info(f"Schedule jitter: ±{config['schedule_jitter_minutes']} minutes")
         logger.info(f"Generated times: {', '.join(times)}")
 
         for t in times:
-            schedule.every().day.at(t).do(job).tag('random_runs')
-            logger.info(f"Scheduled job at {t}")
+            # Add random jitter to each scheduled time
+            jittered_time = PrivacyUtils.add_random_jitter(t, config['schedule_jitter_minutes'])
+            schedule.every().day.at(jittered_time).do(job).tag('random_runs')
+            logger.info(f"Scheduled job at {t} (jittered to {jittered_time})")
 
         # Schedule a daily regeneration just after midnight
         def regenerate():
@@ -205,18 +220,25 @@ def setup_scheduler():
             CURRENT_SCHEDULE_TIMES.extend(new_times)
             logger.info(f"New times: {', '.join(new_times)}")
             for t in new_times:
-                schedule.every().day.at(t).do(job).tag('random_runs')
-                logger.info(f"Scheduled job at {t}")
+                jittered_time = PrivacyUtils.add_random_jitter(t, config['schedule_jitter_minutes'])
+                schedule.every().day.at(jittered_time).do(job).tag('random_runs')
+                logger.info(f"Scheduled job at {t} (jittered to {jittered_time})")
 
         schedule.every().day.at('00:05').do(regenerate).tag('random_regen')
         logger.info("Scheduled daily random regeneration at 00:05")
 
     else:
         logger.info(f"Fixed schedule times: {config['schedule_times']}")
+        logger.info(f"Schedule jitter: ±{config['schedule_jitter_minutes']} minutes")
+        CURRENT_SCHEDULE_TIMES.clear()
+        CURRENT_SCHEDULE_TIMES.extend(config['schedule_times'])
+        
         for time_str in config['schedule_times']:
             time_str = time_str.strip()
-            schedule.every().day.at(time_str).do(job).tag('fixed_runs')
-            logger.info(f"Scheduled job at {time_str}")
+            # Add random jitter to fixed times too
+            jittered_time = PrivacyUtils.add_random_jitter(time_str, config['schedule_jitter_minutes'])
+            schedule.every().day.at(jittered_time).do(job).tag('fixed_runs')
+            logger.info(f"Scheduled job at {time_str} (jittered to {jittered_time})")
 
     logger.info("Scheduler setup complete!")
     logger.info("Waiting for scheduled times...")
